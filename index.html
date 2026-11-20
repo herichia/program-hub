@@ -133,7 +133,6 @@ input[type=color]{width:64px;height:48px;padding:2px}
 <h1 id="hubname">Program Hub</h1>
 <p id="hubsub">Intakes, enrolments, spreadsheets, email drafts and FAQs for every program.</p>
 <nav id="nav" aria-label="Sections">
-<a href="#overview">Overview</a><a href="#programs">Programs</a><a href="#admin">Admin drafts</a><a href="#faqs">FAQs</a><a href="#backup">Settings and backup</a>
 </nav>
 </div></header>
 <main class="band"><div class="wrap" id="view"><p class="empty">Loading…</p></div></main>
@@ -147,7 +146,7 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const DEF_DATES=["Start date","End date","Orientation","Application deadline","Fee deadline"];
 const THEMES=[["Maroon","#800000"],["Navy","#1f3a68"],["Forest","#2c5e3f"],["Teal","#0f6b6b"],["Plum","#5b2a6e"],["Slate","#3d4655"],["Burnt orange","#a8471a"],["Rose","#9c2f5a"]];
-let data={programs:[],admin:[],faqs:[],dateStyle:"long",settings:{}};
+let data={programs:[],admin:[],faqs:[],notes:[],dateStyle:"long",settings:{tabs:["overview","programs","admin","faqs","notes","backup"],hidden:[],ov:{range:60,prog:"",label:"",limit:25,notes:true}}};
 let mode="loading",readOnly=false,view="overview",cur=null,q="",fq="",fcat="",range=60;
 let ui={};const fill={};
 const reset=()=>{ui={}};
@@ -185,7 +184,10 @@ function htmlToText(h){const d=document.createElement("div");d.innerHTML=String(
 
 /* ---------- storage ---------- */
 const LS="programhub-v2";let doc=null,writing=Promise.resolve(),saveT=null;
-function normalize(d){d=d&&typeof d==="object"?d:{};d.programs=Array.isArray(d.programs)?d.programs:[];d.admin=Array.isArray(d.admin)?d.admin:[];d.faqs=Array.isArray(d.faqs)?d.faqs:[];d.dateStyle=d.dateStyle||"long";d.settings=d.settings||{};
+function normalize(d){d=d&&typeof d==="object"?d:{};d.programs=Array.isArray(d.programs)?d.programs:[];d.admin=Array.isArray(d.admin)?d.admin:[];d.faqs=Array.isArray(d.faqs)?d.faqs:[];d.dateStyle=d.dateStyle||"long";d.settings=d.settings||{};d.notes=Array.isArray(d.notes)?d.notes:[];
+  const ord=Array.isArray(d.settings.tabs)?d.settings.tabs.filter(v=>VIEWS.includes(v)):[];VIEWS.forEach(v=>{if(ord.includes(v))return;const b=ord.indexOf("backup");if(v!=="backup"&&b>-1)ord.splice(b,0,v);else ord.push(v)});d.settings.tabs=ord;
+  d.settings.hidden=Array.isArray(d.settings.hidden)?d.settings.hidden.filter(v=>v!=="backup"):[];
+  d.settings.ov=Object.assign({range:60,prog:"",label:"",limit:25,notes:true},d.settings.ov||{});
   const fix=x=>{if(x.html==null)x.html=textToHtml(x.body||"")};
   d.admin.forEach(fix);d.faqs.forEach(f=>{if(f.html==null)f.html=textToHtml(f.answer||"")});
   d.programs.forEach(p=>{p.links=p.links||[];p.drafts=p.drafts||[];p.drafts.forEach(fix);p.intakes=p.intakes||[];p.intakes.forEach(i=>i.dates=i.dates||[])});
@@ -272,19 +274,25 @@ function labelsFor(scope){const s=new Set(["Program","Intake"]);const ps=scope==
   ps.forEach(p=>p.intakes.forEach(i=>i.dates.forEach(d=>d.label&&s.add(d.label.trim()))));if(s.size===2)DEF_DATES.forEach(x=>s.add(x));return[...s]}
 
 /* ---------- views ---------- */
-const VIEWS=["overview","programs","admin","faqs","backup"];
-function route(){const h=(location.hash||"#overview").slice(1);view=VIEWS.includes(h)?h:"overview";if(!cur||!P())cur=data.programs[0]?.id||null;applyTheme();render()}
+const VIEWS=["overview","programs","admin","faqs","notes","backup"];
+const NAMES={overview:"Overview",programs:"Programs",admin:"Admin drafts",faqs:"FAQs",notes:"Notes",backup:"Settings and backup"};
+function renderNav(){const vis=data.settings.tabs.filter(v=>!data.settings.hidden.includes(v));$("nav").innerHTML=vis.map(v=>`<a href="#${v}" aria-current="${v===view?"page":"false"}">${NAMES[v]}</a>`).join("")}
+function route(){const vis=data.settings.tabs.filter(v=>!data.settings.hidden.includes(v));const h=(location.hash||"").slice(1);view=VIEWS.includes(h)?h:vis[0]||"overview";if(!cur||!P())cur=data.programs[0]?.id||null;applyTheme();render()}
 window.addEventListener("hashchange",()=>{reset();route()});
 function render(){
-  document.querySelectorAll("#nav a").forEach(a=>a.setAttribute("aria-current",a.getAttribute("href")==="#"+view?"page":"false"));
+  renderNav();
   const note=mode==="local"?'<div class="banner">This hub is yours and is saved in this browser only. Download a backup from <a href="#backup">Settings and backup</a> now and then.</div>':readOnly?'<div class="banner">View only.</div>':"";
-  $("view").innerHTML=note+({overview:vOverview,programs:vPrograms,admin:vAdmin,faqs:vFaqs,backup:vBackup}[view])();
+  $("view").innerHTML=note+({overview:vOverview,programs:vPrograms,admin:vAdmin,faqs:vFaqs,notes:vNotes,backup:vBackup}[view])();
 }
 
 function vOverview(){
-  const all=allIntakes(),t=iso(today()),lim=iso(new Date(today().getTime()+range*864e5));
-  const up=[];data.programs.forEach(p=>p.intakes.forEach(i=>i.dates.forEach(d=>{if(pd(d.date)&&d.date>=t&&d.date<=lim)up.push({p,i,d})})));
+  const o=data.settings.ov,all=allIntakes(),t=iso(today()),lim=iso(new Date(today().getTime()+(+o.range)*864e5));
+  const up=[];data.programs.forEach(p=>{if(o.prog&&p.id!==o.prog)return;p.intakes.forEach(i=>i.dates.forEach(d=>{if(pd(d.date)&&d.date>=t&&d.date<=lim&&(!o.label||d.label.trim().toLowerCase()===o.label))up.push({p,i,d})}))});
+  if(o.notes&&!o.label)data.notes.forEach(n=>{if(!n.done&&pd(n.date)&&n.date<=lim&&(!o.prog||n.prog===o.prog))up.push({note:n,d:{date:n.date,label:n.text}})});
   up.sort((a,b)=>a.d.date.localeCompare(b.d.date));
+  const labels=[...new Set(data.programs.flatMap(p=>p.intakes.flatMap(i=>i.dates.map(d=>d.label.trim()).filter(Boolean))))].sort();
+  const sel=(id,lab,opts,val)=>`<label class="small" style="margin:0;display:flex;flex-direction:column;gap:2px;flex:1 1 140px">${lab}<select id="${id}" style="font-size:15px">${opts.map(([v,n])=>`<option value="${esc(v)}"${String(v)===String(val)?" selected":""}>${esc(n)}</option>`).join("")}</select></label>`;
+  const filters=`<div class="row" style="background:var(--panel);border-radius:12px;padding:10px 12px;margin-bottom:8px;align-items:flex-end">${sel("ov-range","Time frame",[[7,"Next 7 days"],[14,"Next 2 weeks"],[30,"Next 30 days"],[60,"Next 60 days"],[90,"Next 3 months"],[180,"Next 6 months"],[365,"Next 12 months"]],o.range)}${sel("ov-prog","Program",[["","All programs"]].concat(data.programs.map(p=>[p.id,p.name])),o.prog)}${sel("ov-label","Type of date",[["","All dates"]].concat(labels.map(l=>[l.toLowerCase(),l])),o.label)}${sel("ov-limit","Show",[[10,"10 dates"],[25,"25 dates"],[50,"50 dates"],[9999,"All"]],o.limit)}<label class="small" style="margin:0;display:flex;gap:6px;align-items:center;min-height:44px"><input type="checkbox" id="ov-notes" ${o.notes?"checked":""} style="width:20px;height:20px"> Include my notes</label></div>`;
   const active=all.filter(x=>!x.start||days(x.start)>=-30),upcoming=all.filter(x=>x.start&&x.start>=t);
   const enr=upcoming.reduce((s,x)=>s+(+x.i.enrolled||0),0),tgt=upcoming.reduce((s,x)=>s+(+x.i.target||0),0),nxt=upcoming[0];
   if(!data.programs.length)return`<h2>Welcome to your hub</h2><p>This hub is yours: your own programs, drafts, FAQs and colours. Start by pasting your academic calendar from Excel on the <a href="#backup">Settings and backup</a> page, or add programs one at a time on the <a href="#programs">Programs</a> page.</p>`;
@@ -292,8 +300,10 @@ function vOverview(){
 <div class="stat"><b>${upcoming.length}</b><span>upcoming intakes across ${data.programs.length} programs</span></div>
 <div class="stat"><b>${enr}${tgt?` <small class="mut" style="font-size:.5em">of ${tgt}</small>`:""}</b><span>students enrolled in upcoming intakes</span></div>
 <div class="stat"><b>${nxt?esc(fmt(nxt.start,"short")):"None"}</b><span>${nxt?"next start: "+esc(nxt.p.name):"no upcoming start dates"}</span></div></div>`;
-  h+=`<div class="ov"><div><h3>Upcoming dates <select id="range" aria-label="Show dates for" style="width:auto;font-size:15px">${[30,60,90,180].map(n=>`<option value="${n}"${n===range?" selected":""}>Next ${n} days</option>`).join("")}</select></h3>`;
-  h+=up.length?`<ul class="dates">`+up.slice(0,40).map(x=>{const d=pd(x.d.date),n=days(x.d.date);return`<li><div class="cal"><small>${d.toLocaleDateString("en-CA",{month:"short"})}</small><b>${d.getDate()}</b></div><div><div class="what">${esc(x.d.label)} <span class="soon">${away(n)}</span></div><div class="sub">${esc(x.p.name)} · ${esc(x.i.name)} · ${esc(fmt(x.d.date,"nodow"))}</div></div></li>`}).join("")+`</ul>`:`<p class="empty">Nothing in the next ${range} days.</p>`;
+  h+=`<div class="ov"><div><h3>Upcoming dates <span class="small mut" style="font-weight:400">${up.length} found</span></h3>${filters}`;
+  h+=up.length?`<ul class="dates">`+up.slice(0,+o.limit).map(x=>{const d=pd(x.d.date),n=days(x.d.date);
+    if(x.note){const pn=(data.programs.find(p=>p.id===x.note.prog)||{}).name;return`<li><div class="cal" style="background:var(--fill)"><small>${d.toLocaleDateString("en-CA",{month:"short"})}</small><b>${d.getDate()}</b></div><div><div class="what"><span class="pill">Note</span> ${esc(x.note.text.split("\n")[0].slice(0,120))} <span class="soon"${n<0?' style="color:var(--bad)"':""}>${n<0?"overdue":away(n)}</span></div><div class="sub">My note${pn?" · "+esc(pn):""} · ${esc(fmt(x.d.date,"nodow"))} · <a href="#notes">open notes</a></div></div></li>`}
+    return`<li><div class="cal"><small>${d.toLocaleDateString("en-CA",{month:"short"})}</small><b>${d.getDate()}</b></div><div><div class="what">${esc(x.d.label)} <span class="soon">${away(n)}</span></div><div class="sub">${esc(x.p.name)} · ${esc(x.i.name)} · ${esc(fmt(x.d.date,"nodow"))}</div></div></li>`}).join("")+`</ul>`+(up.length>+o.limit?`<p class="hint">Showing ${o.limit} of ${up.length}. Change "Show" to see more.</p>`:""):`<p class="empty">No dates match these filters.</p>`;
   h+=`</div><div><h3>Enrolment by intake</h3>`;
   h+=active.length?`<table class="stack"><thead><tr><th>Program and intake</th><th>Starts</th><th>Enrolled</th><th></th><th>Status</th></tr></thead><tbody>`+active.map(x=>`<tr class="click" data-act="goprog" data-id="${x.p.id}"><td><b>${esc(x.p.name)}</b><br><span class="small mut">${esc(x.i.name)}</span></td><td style="white-space:nowrap">${esc(x.start?fmt(x.start,"short"):"—")}</td><td class="num">${+x.i.enrolled||0}${x.i.target?" / "+(+x.i.target):""}</td><td style="width:22%">${bar(x.i)}</td><td>${status(x.i)}</td></tr>`).join("")+`</tbody></table>`:`<p class="empty">No intakes yet.</p>`;
   return h+`<p class="hint">Click a row to open that program. Update enrolment numbers on each program's page.</p></div></div>`;
@@ -303,7 +313,8 @@ function vPrograms(){
   const list=data.programs.filter(p=>!q||p.name.toLowerCase().includes(q));
   let h=`<div class="two"><aside class="side"><input id="search" type="search" placeholder="Search programs" aria-label="Search programs" value="${esc(q)}"><ul class="tabs">`+
     (list.length?list.map(p=>`<li><button class="tab" data-act="open" data-id="${p.id}" aria-current="${p.id===cur}"><span>${esc(p.name)}</span><small>${p.intakes.length} intakes</small></button></li>`).join(""):`<li class="empty">${data.programs.length?"No matches.":"No programs yet."}</li>`)+`</ul>`+
-    (readOnly?"":`<form class="inl" data-form="addprog"><input name="name" placeholder="New program name" aria-label="New program name" autocomplete="off"><button class="pri">Add</button></form>`)+`</aside><section>`;
+    (readOnly?"":`<form class="inl" data-form="addprog"><input name="name" placeholder="New program name" aria-label="New program name" autocomplete="off"><button class="pri">Add</button></form><button style="width:100%;margin-top:10px" data-act="bulk">Add dates to many programs</button>`)+`</aside><section>`;
+  if(ui.bulk&&!readOnly)return h+bulkForm()+`</section></div>`;
   const p=P();
   if(!p)return h+`<h2>No program selected</h2><p class="mut">Add a program on the left, or paste your calendar on the <a href="#backup">Settings and backup</a> page.</p></section></div>`;
   const ed=!readOnly;
@@ -366,6 +377,41 @@ function draftForm(d,scope){
 ${rte("df-b",d.html,"Write or paste your email. Formatting from Outlook or Word is kept.",scope)}
 <p class="hint">Anything else in square brackets, like [Student name], stays as-is and is marked so you remember to fill it in.</p><div class="row end" style="margin-top:12px"><button type="button" class="ghost" data-act="cancel">Cancel</button><button class="pri">Save draft</button></div></form>`}
 
+/* ---------- bulk dates ---------- */
+function bulkForm(){
+  const names=[...new Set(data.programs.flatMap(p=>p.intakes.map(i=>i.name)))].sort();
+  const labels=[...new Set(DEF_DATES.concat(data.programs.flatMap(p=>p.intakes.flatMap(i=>i.dates.map(d=>d.label.trim()).filter(Boolean)))))];
+  const row=`<div class="drow"><input name="dl" list="bk-labels" placeholder="e.g. Orientation" aria-label="Date name"><input name="dd" type="date" aria-label="Date"><button type="button" class="sq ghost" data-act="rmrow" aria-label="Remove this date">×</button></div>`;
+  return`<h2>Add dates to many programs</h2><p class="mut">Pick the programs, name the intake, and enter the dates once. They're added to every program you tick. If a program already has an intake with that name, its dates are updated.</p>
+<form class="form" data-form="bulk"><label>Programs</label><div class="row" style="margin-bottom:6px"><button type="button" class="ghost" data-act="bkall">Select all</button><button type="button" class="ghost" data-act="bknone">Clear</button></div>
+<div class="cards" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px">${data.programs.map(p=>`<label style="margin:0;font-weight:400;display:flex;gap:8px;align-items:center;min-height:44px;border:1.5px solid var(--line);border-radius:10px;padding:0 12px"><input type="checkbox" name="bp" value="${p.id}" style="width:20px;height:20px"${p.id===cur?" checked":""}> ${esc(p.name)}</label>`).join("")||'<p class="empty">Add some programs first.</p>'}</div>
+<div class="grid2" style="margin-top:6px"><div><label for="bk-n">Intake name</label><input id="bk-n" name="name" list="bk-names" required placeholder="e.g. May 2027"><datalist id="bk-names">${names.map(n=>`<option value="${esc(n)}">`).join("")}</datalist></div><div><label for="bk-t">Target seats (optional, same for all)</label><input id="bk-t" name="target" type="number" min="0"></div></div>
+<datalist id="bk-labels">${labels.map(l=>`<option value="${esc(l)}">`).join("")}</datalist>
+<label>Dates</label><div id="drows">${DEF_DATES.map(l=>row.replace('name="dl"',`name="dl" value="${esc(l)}"`)).join("")}</div>
+<button type="button" class="ghost" data-act="addrow">+ Add a date</button>
+<label for="bk-txt" style="margin-top:14px">Or type or paste dates as a list (optional)</label>
+<textarea id="bk-txt" name="txt" style="min-height:110px" placeholder="Start date: May 3, 2027&#10;Orientation: April 29, 2027&#10;Fee deadline - 2027-04-12"></textarea>
+<p class="hint">One date per line: the name, then a colon or dash, then the date. These are added on top of the rows above.</p>
+<div class="row end" style="margin-top:12px"><button type="button" class="ghost" data-act="cancel">Cancel</button><button class="pri">Add to selected programs</button></div></form>`;
+}
+
+/* ---------- notes ---------- */
+function vNotes(){
+  const list=data.notes.filter(n=>ui.showDone||!n.done).sort((a,b)=>(b.pin?1:0)-(a.pin?1:0)||(a.date||"9").localeCompare(b.date||"9")||(b.created||0)-(a.created||0));
+  const doneCount=data.notes.filter(n=>n.done).length;
+  let h=`<h2>Notes</h2><p class="mut">Reminders and to-dos for yourself. Notes with a date also appear in the Overview's upcoming dates.</p>`;
+  if(!readOnly)h+=ui.edit&&ui.edit.startsWith("n:")?"":noteForm({text:"",date:"",prog:""});
+  h+=`<div class="row" style="margin:14px 0 8px;justify-content:space-between"><b>${list.length} note${list.length===1?"":"s"}</b>${doneCount?`<button class="ghost" data-act="togdone">${ui.showDone?"Hide":"Show"} ${doneCount} done</button>`:""}</div>`;
+  if(!list.length)return h+`<p class="empty">${data.notes.length?"Everything's done.":"No notes yet."}</p>`;
+  return h+`<div class="drafts">`+list.map(n=>{if(ui.edit==="n:"+n.id)return noteForm(n);const pn=(data.programs.find(p=>p.id===n.prog)||{}).name;const dd=days(n.date);
+    return`<article class="draft" style="${n.pin?"border-color:var(--acc);":""}${n.done?"opacity:.6;":""}"><div class="row" style="align-items:flex-start;flex-wrap:nowrap"><input type="checkbox" data-done="${n.id}" ${n.done?"checked":""} aria-label="Mark done" style="width:22px;height:22px;flex:none;margin-top:3px"><div style="flex:1"><div style="white-space:pre-wrap;overflow-wrap:anywhere${n.done?";text-decoration:line-through":""}">${esc(n.text)}</div><div class="row small mut" style="margin-top:6px;gap:6px">${n.pin?'<span class="pill full">Pinned</span>':""}${n.date?`<span class="pill"${dd!=null&&dd<0&&!n.done?' style="color:var(--bad)"':""}>${esc(fmt(n.date,"short"))} · ${dd!=null&&dd<0?"overdue":away(dd)}</span>`:""}${pn?`<span class="pill">${esc(pn)}</span>`:""}</div></div></div>
+${readOnly?"":`<div class="row end" style="margin-top:6px"><button class="ghost" data-act="pin" data-id="${n.id}">${n.pin?"Unpin":"Pin"}</button><button class="ghost" data-act="editnote" data-id="${n.id}">Edit</button>${ui.confirm==="n"+n.id?`<button class="danger" data-act="delnote" data-id="${n.id}">Delete</button>`:`<button class="ghost" data-act="ask" data-w="n${n.id}">Delete</button>`}</div>`}</article>`}).join("")+`</div>`;
+}
+function noteForm(n){
+  return`<form class="form" data-form="note" data-id="${n.id||""}"><label for="nt-t">${n.id?"Edit note":"New note"}</label><textarea id="nt-t" name="text" style="min-height:90px" required placeholder="e.g. Follow up with Maria about missing transcript">${esc(n.text)}</textarea>
+<div class="grid2"><div><label for="nt-d">Date (optional)</label><input id="nt-d" name="date" type="date" value="${esc(n.date)}"></div><div><label for="nt-p">Program (optional)</label><select id="nt-p" name="prog"><option value="">None</option>${data.programs.map(p=>`<option value="${p.id}"${p.id===n.prog?" selected":""}>${esc(p.name)}</option>`).join("")}</select></div></div>
+<div class="row end" style="margin-top:12px">${n.id?`<button type="button" class="ghost" data-act="cancel">Cancel</button>`:""}<button class="pri">${n.id?"Save note":"Add note"}</button></div></form>`}
+
 /* ---------- FAQs ---------- */
 function vFaqs(){
   const cats=[["","All"],["general","General"]].concat(data.programs.map(p=>[p.id,p.name]));
@@ -391,6 +437,9 @@ function vBackup(){
 <label>Colour</label><div class="swatches">${THEMES.map(([n,v])=>`<button type="button" class="sw" style="background:${v}" data-act="color" data-v="${v}" aria-label="${n}" title="${n}" aria-pressed="${v.toLowerCase()===c.toLowerCase()}"></button>`).join("")}<span class="row"><input type="color" id="st-c" value="${esc(c)}" aria-label="Pick any colour"><span class="small mut">or pick any colour</span></span></div>
 <label for="dstyle">Date style in emails</label><select id="dstyle" name="dateStyle" style="width:auto">${[["long","Monday, January 11, 2027"],["nodow","January 11, 2027"],["short","Jan 11, 2027"]].map(([v,n])=>`<option value="${v}"${v===data.dateStyle?" selected":""}>${n}</option>`).join("")}</select>
 <div class="row" style="margin-top:12px"><button class="pri"${readOnly?" disabled":""}>Save settings</button></div></form></section>
+<section class="box"><h3>Arrange tabs</h3><p class="mut" style="margin-top:-6px">Move tabs up or down to change their order, and untick any you don't use. The first tab is the one that opens when you visit.</p>
+<ol style="list-style:none;padding:0;margin:0;display:grid;gap:6px;max-width:520px">${data.settings.tabs.map((v,k,arr)=>`<li class="row" style="border:1.5px solid var(--line);border-radius:10px;padding:4px 6px 4px 12px;flex-wrap:nowrap"><label style="margin:0;flex:1;display:flex;gap:10px;align-items:center;font-weight:600;min-height:44px"><input type="checkbox" data-tabshow="${v}" ${data.settings.hidden.includes(v)?"":"checked"} ${v==="backup"?"disabled":""} style="width:20px;height:20px"> ${NAMES[v]}</label><button type="button" class="sq ghost" data-act="tabmv" data-v="${v}" data-d="-1" aria-label="Move ${NAMES[v]} up" ${k===0?"disabled":""}>↑</button><button type="button" class="sq ghost" data-act="tabmv" data-v="${v}" data-d="1" aria-label="Move ${NAMES[v]} down" ${k===arr.length-1?"disabled":""}>↓</button></li>`).join("")}</ol>
+<p class="hint">Settings and backup always stays visible so you can't lock yourself out.</p></section>
 <section class="box"><h3>Paste your academic calendar</h3>
 <p>Copy the rows from Excel, including the header row, and paste them below. The first column is the program and the second is the intake name. Every other column with dates becomes a date for that intake, named after its column header. Columns named <b>Target</b> or <b>Enrolled</b> fill in the numbers. If an intake with the same name already exists, its dates are updated.</p>
 <div class="body" style="max-height:none;white-space:pre;overflow-x:auto;font-size:13px">Program	Intake	Start date	End date	Orientation	Application deadline	Target
@@ -443,6 +492,9 @@ document.addEventListener("change",e=>{const t=e.target;
   if(t.dataset.fill){fill[t.dataset.fill]=t.value;render();return}
   if(t.id==="range"){range=+t.value;render();return}
   if(t.id==="fcat"){fcat=t.value;render();return}
+  if(/^ov-/.test(t.id)){const o=data.settings.ov,k=t.id.slice(3);o[k]=k==="notes"?t.checked:(k==="range"||k==="limit")?+t.value:t.value;if(!readOnly)save();render();return}
+  if(t.dataset.tabshow){if(readOnly)return;const h=data.settings.hidden,v=t.dataset.tabshow;if(t.checked)data.settings.hidden=h.filter(x=>x!==v);else if(!h.includes(v))h.push(v);save();render();return}
+  if(t.dataset.done){if(readOnly)return;const n=data.notes.find(x=>x.id===t.dataset.done);if(n){n.done=t.checked;save();render();toast(n.done?"Marked done":"Marked not done")}return}
   if(t.id==="restfile"&&t.files[0]){const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d.programs))throw 0;data=normalize(d);cur=null;save(true);route();toast("Backup restored")}catch(x){$("restmsg").textContent="That file isn't a Program Hub backup."}};r.readAsText(t.files[0])}});
 /* keep the editor's selection when toolbar or insert buttons are pressed */
 document.addEventListener("mousedown",e=>{if(e.target.closest(".tools button,[data-ins]"))e.preventDefault()});
@@ -488,6 +540,13 @@ document.addEventListener("click",e=>{
   if(a==="deldraft"){const l=list(b.dataset.s);const k=l.findIndex(x=>x.id===b.dataset.id);if(k>-1)l.splice(k,1);reset();save();render();return}
   if(a==="newfaq"){reset();ui.edit="newfaq";render();$("fq-q")?.focus();return}
   if(a==="editfaq"){reset();ui.edit=b.dataset.id;render();$("fq-q")?.focus();return}
+  if(a==="tabmv"){const t=data.settings.tabs,k=t.indexOf(b.dataset.v),j=k+(+b.dataset.d);if(k<0||j<0||j>=t.length)return;[t[k],t[j]]=[t[j],t[k]];save();render();toast("Tab order saved");return}
+  if(a==="bulk"){reset();ui.bulk=true;render();return}
+  if(a==="bkall"||a==="bknone"){document.querySelectorAll("input[name=bp]").forEach(c=>c.checked=a==="bkall");return}
+  if(a==="togdone"){ui.showDone=!ui.showDone;render();return}
+  if(a==="pin"){const n=data.notes.find(x=>x.id===b.dataset.id);if(n){n.pin=!n.pin;save();render()}return}
+  if(a==="editnote"){const sd=ui.showDone;reset();ui.showDone=sd;ui.edit="n:"+b.dataset.id;render();$("nt-t")?.focus();return}
+  if(a==="delnote"){data.notes=data.notes.filter(x=>x.id!==b.dataset.id);const sd=ui.showDone;reset();ui.showDone=sd;save();render();return}
   if(a==="delfaq"){data.faqs=data.faqs.filter(x=>x.id!==b.dataset.id);reset();save();render();return}
   const p=P();if(!p)return;
   if(a==="rename"){reset();ui.rename=true;render();return}
@@ -512,6 +571,22 @@ document.addEventListener("submit",e=>{
     const l=f.dataset.s==="admin"?data.admin:data.programs.find(p=>p.id===f.dataset.s).drafts;
     const id=f.dataset.id;if(id){const x=l.find(x=>x.id===id);if(x){Object.assign(x,body);delete x.body}}else l.push(Object.assign({id:uid()},body));
     reset();save(true);render();toast("Draft saved");return}
+  if(k==="note"){const body={text:f.elements.text.value.trim(),date:v("date"),prog:v("prog")};if(!body.text)return;const id=f.dataset.id;
+    if(id)Object.assign(data.notes.find(x=>x.id===id)||{},body);else data.notes.push(Object.assign({id:uid(),created:Date.now(),done:false,pin:false},body));
+    const sd=ui.showDone;reset();ui.showDone=sd;save(true);render();toast(id?"Note saved":"Note added");return}
+  if(k==="bulk"){
+    const ids=[...f.querySelectorAll("input[name=bp]:checked")].map(c=>c.value);if(!ids.length){toast("Tick at least one program.");return}
+    const name=v("name");if(!name){toast("Give the intake a name.");return}
+    const ls=[...f.querySelectorAll("#drows input[name=dl]")],ds=[...f.querySelectorAll("#drows input[name=dd]")];
+    const dates=ls.map((l,j)=>({label:l.value.trim(),date:ds[j].value})).filter(d=>d.label&&d.date);let bad=0;
+    v("txt").split("\n").forEach(line=>{line=line.trim();if(!line)return;const m=/^(.+?)\s*(?::|\s[-–—]\s|\t)\s*(.+)$/.exec(line);if(!m){bad++;return}const d=parseDate(m[2],"mdy");if(!d){bad++;return}
+      const ex=dates.find(x=>x.label.toLowerCase()===m[1].trim().toLowerCase());if(ex)ex.date=d;else dates.push({label:m[1].trim(),date:d})});
+    if(!dates.length){toast(bad?"I couldn't read those dates. Try a format like May 3, 2027.":"Enter at least one date.");return}
+    let made=0,upd=0;const tg=v("target");
+    ids.forEach(id=>{const p=data.programs.find(x=>x.id===id);if(!p)return;let i=p.intakes.find(x=>x.name.toLowerCase()===name.toLowerCase());
+      if(!i){i={id:uid(),name,target:tg,enrolled:"",dates:[]};p.intakes.push(i);made++}else{upd++;if(tg)i.target=tg}
+      dates.forEach(d=>{const ex=i.dates.find(x=>x.label.toLowerCase()===d.label.toLowerCase());if(ex)ex.date=d.date;else i.dates.push({label:d.label,date:d.date})})});
+    reset();save(true);render();toast(`Dates added to ${ids.length} program${ids.length>1?"s":""}${made?` (${made} new intake${made>1?"s":""})`:""}${bad?`. ${bad} line${bad>1?"s":""} skipped`:""}`);return}
   if(k==="faq"){const body={q:v("q"),cat:v("cat")||"general",html:sanitize($("fq-a").innerHTML)};const id=f.dataset.id;
     if(id){const x=data.faqs.find(x=>x.id===id);if(x){Object.assign(x,body);delete x.answer}}else data.faqs.unshift(Object.assign({id:uid()},body));
     reset();ui.open=id||data.faqs[0].id;save(true);render();toast("FAQ saved");return}
