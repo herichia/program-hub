@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Program Hub</title>
+<link rel="icon" id="fav" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22%23800000%22/%3E%3Ctext x=%2232%22 y=%2242%22 font-family=%22Arial%22 font-weight=%22bold%22 font-size=%2228%22 fill=%22white%22 text-anchor=%22middle%22%3EPH%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" id="fav2" href="">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
@@ -228,7 +230,12 @@ function startDb(db){
 
 /* ---------- theme ---------- */
 function lum(hex){const m=/^#?([\da-f]{6})$/i.exec(hex||"");if(!m)return 0;const n=parseInt(m[1],16);const c=[n>>16,n>>8&255,n&255].map(v=>{v/=255;return v<=.03928?v/12.92:((v+.055)/1.055)**2.4});return .2126*c[0]+.7152*c[1]+.0722*c[2]}
-function applyTheme(){const c=/^#[\da-f]{6}$/i.test(data.settings.color||"")?data.settings.color:"#800000";const r=document.documentElement.style;r.setProperty("--c",c);r.setProperty("--headink",lum(c)>.4?"#16161a":"#fff");
+function initials(n){const w=(n||"Program Hub").replace(/[^\p{L}\p{N}\s]/gu,"").trim().split(/\s+/).filter(Boolean);return((w[0]||"P")[0]+(w[1]?w[1][0]:(w[0]||"PH")[1]||"")).toUpperCase()}
+function iconUrl(){if(/^data:image\//.test(data.settings.icon||""))return data.settings.icon;const c=/^#[\da-f]{6}$/i.test(data.settings.color||"")?data.settings.color:"#800000";const ink=lum(c)>.4?"#16161a":"#ffffff";const t=esc(data.settings.iconText||initials(data.settings.name));
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="${c}"/><text x="32" y="${t.length>2?40:42}" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="${t.length>2?20:28}" fill="${ink}" text-anchor="middle">${t}</text></svg>`;
+  return"data:image/svg+xml,"+encodeURIComponent(svg)}
+function applyIcon(){const u=iconUrl();$("fav").href=u;$("fav2").href=u;const prev=$("iconprev");if(prev)prev.src=u}
+function applyTheme(){applyIcon();const c=/^#[\da-f]{6}$/i.test(data.settings.color||"")?data.settings.color:"#800000";const r=document.documentElement.style;r.setProperty("--c",c);r.setProperty("--headink",lum(c)>.4?"#16161a":"#fff");
   $("hubname").textContent=data.settings.name||"Program Hub";document.title=data.settings.name||"Program Hub";
   $("hubsub").textContent=data.settings.tagline||"Intakes, enrolments, spreadsheets, email drafts and FAQs for every program."}
 
@@ -440,6 +447,9 @@ function vBackup(){
 <section class="box" style="margin-top:12px;border:0;padding:0"><h3>Make it yours</h3>
 <form data-form="settings"><div class="grid2"><div><label for="st-n">Hub name</label><input id="st-n" name="name" value="${esc(data.settings.name||"")}" placeholder="Program Hub"></div><div><label for="st-t">Line under the name</label><input id="st-t" name="tagline" value="${esc(data.settings.tagline||"")}" placeholder="Intakes, enrolments, spreadsheets, email drafts and FAQs for every program."></div></div>
 <label>Colour</label><div class="swatches">${THEMES.map(([n,v])=>`<button type="button" class="sw" style="background:${v}" data-act="color" data-v="${v}" aria-label="${n}" title="${n}" aria-pressed="${v.toLowerCase()===c.toLowerCase()}"></button>`).join("")}<span class="row"><input type="color" id="st-c" value="${esc(c)}" aria-label="Pick any colour"><span class="small mut">or pick any colour</span></span></div>
+<label>Browser tab icon</label><div class="row" style="align-items:center;gap:14px"><img id="iconprev" src="${iconUrl()}" alt="Current tab icon" width="56" height="56" style="border-radius:12px;border:1.5px solid var(--line);background:var(--panel);object-fit:cover">
+<div style="flex:1 1 260px"><label for="st-it" style="margin-top:0">Letters on the icon</label><input id="st-it" name="iconText" maxlength="3" value="${esc(data.settings.iconText||"")}" placeholder="${esc(initials(data.settings.name))} (from your hub name)" style="max-width:240px"></div></div>
+<div class="row" style="margin-top:8px"><label class="btn" for="st-iu" style="margin:0;cursor:pointer">Upload your own image</label><input type="file" id="st-iu" accept="image/*" style="position:absolute;width:1px;height:1px;opacity:0">${/^data:image\//.test(data.settings.icon||"")?`<button type="button" class="ghost" data-act="iconclear">Use letters instead</button>`:""}<span class="small mut">A square logo or picture works best. It's shrunk to icon size.</span></div>
 <label for="dstyle">Date style in emails</label><select id="dstyle" name="dateStyle" style="width:auto">${[["long","Monday, January 11, 2027"],["nodow","January 11, 2027"],["short","Jan 11, 2027"]].map(([v,n])=>`<option value="${v}"${v===data.dateStyle?" selected":""}>${n}</option>`).join("")}</select>
 <div class="row" style="margin-top:12px"><button class="pri"${readOnly?" disabled":""}>Save settings</button></div></form></section>
 <section class="box"><h3>Arrange and rename tabs</h3><p class="mut" style="margin-top:-6px">Type a new name for any tab (leave it blank to keep the original), move tabs up or down, and untick any you don't use. The first tab is the one that opens when you visit.</p>
@@ -492,6 +502,7 @@ async function doExport(){
 /* ---------- events ---------- */
 document.addEventListener("input",e=>{const t=e.target;
   if(t.id==="search"||t.id==="fsearch"){const v=t.value.trim().toLowerCase();if(t.id==="search")q=v;else fq=v;const pos=t.selectionStart,id=t.id;render();const s=$(id);s.focus();s.setSelectionRange(pos,pos)}
+  if(t.id==="st-it"&&!/^data:image\//.test(data.settings.icon||"")){const keep=data.settings.iconText;data.settings.iconText=t.value.toUpperCase();applyIcon();data.settings.iconText=keep}
   if(t.id==="st-c"){document.documentElement.style.setProperty("--c",t.value);document.documentElement.style.setProperty("--headink",lum(t.value)>.4?"#16161a":"#fff")}});
 document.addEventListener("change",e=>{const t=e.target;
   if(t.dataset.fill){fill[t.dataset.fill]=t.value;render();return}
@@ -499,6 +510,7 @@ document.addEventListener("change",e=>{const t=e.target;
   if(t.id==="fcat"){fcat=t.value;render();return}
   if(/^ov-/.test(t.id)){const o=data.settings.ov,k=t.id.slice(3);o[k]=k==="notes"?t.checked:(k==="range"||k==="limit")?+t.value:t.value;if(!readOnly)save();render();return}
   if(t.dataset.tabname!==undefined&&t.matches("[data-tabname]")){if(readOnly)return;data.settings.tabNames[t.dataset.tabname]=t.value.trim();save();renderNav();toast("Tab name saved");return}
+  if(t.id==="st-iu"&&t.files[0]){if(readOnly)return;const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const c=document.createElement("canvas");c.width=c.height=128;const x=c.getContext("2d");const m=Math.min(img.width,img.height);x.drawImage(img,(img.width-m)/2,(img.height-m)/2,m,m,0,0,128,128);data.settings.icon=c.toDataURL("image/png");save(true);applyIcon();render();toast("Tab icon updated")};img.onerror=()=>toast("That file isn't an image I can read.");img.src=r.result};r.readAsDataURL(t.files[0]);return}
   if(t.dataset.tabshow){if(readOnly)return;const h=data.settings.hidden,v=t.dataset.tabshow;if(t.checked)data.settings.hidden=h.filter(x=>x!==v);else if(!h.includes(v))h.push(v);save();render();return}
   if(t.dataset.done){if(readOnly)return;const n=data.notes.find(x=>x.id===t.dataset.done);if(n){n.done=t.checked;save();render();toast(n.done?"Marked done":"Marked not done")}return}
   if(t.id==="restfile"&&t.files[0]){const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d.programs))throw 0;data=normalize(d);cur=null;save(true);route();toast("Backup restored")}catch(x){$("restmsg").textContent="That file isn't a Program Hub backup."}};r.readAsText(t.files[0])}});
@@ -546,6 +558,7 @@ document.addEventListener("click",e=>{
   if(a==="deldraft"){const l=list(b.dataset.s);const k=l.findIndex(x=>x.id===b.dataset.id);if(k>-1)l.splice(k,1);reset();save();render();return}
   if(a==="newfaq"){reset();ui.edit="newfaq";render();$("fq-q")?.focus();return}
   if(a==="editfaq"){reset();ui.edit=b.dataset.id;render();$("fq-q")?.focus();return}
+  if(a==="iconclear"){delete data.settings.icon;save(true);applyIcon();render();toast("Using letters for the icon");return}
   if(a==="secmv"){const t=data.settings.progOrder,k=t.indexOf(b.dataset.v),j=k+(+b.dataset.d);if(k<0||j<0||j>=t.length){toast("Already at the "+(j<0?"top":"bottom")+".");return}[t[k],t[j]]=[t[j],t[k]];save();render();return}
   if(a==="drmv"){const l=list(b.dataset.s),k=l.findIndex(x=>x.id===b.dataset.id),j=k+(+b.dataset.d);if(k<0||j<0||j>=l.length)return;[l[k],l[j]]=[l[j],l[k]];save();render();return}
   if(a==="rowmv"){const r=b.closest(".drow"),sib=+b.dataset.d<0?r.previousElementSibling:r.nextElementSibling;if(!sib)return;if(+b.dataset.d<0)sib.before(r);else sib.after(r);b.focus();return}
@@ -574,7 +587,7 @@ document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.id==="lnk-u
 document.addEventListener("submit",e=>{
   const f=e.target.closest("[data-form]");if(!f)return;e.preventDefault();if(readOnly)return;
   const v=n=>(f.elements[n]&&f.elements[n].value||"").trim(),k=f.dataset.form;
-  if(k==="settings"){data.settings.name=v("name");data.settings.tagline=v("tagline");data.settings.color=$("st-c").value;data.dateStyle=v("dateStyle")||"long";save(true);applyTheme();render();toast("Settings saved");return}
+  if(k==="settings"){data.settings.name=v("name");data.settings.tagline=v("tagline");data.settings.color=$("st-c").value;data.settings.iconText=v("iconText").toUpperCase();data.dateStyle=v("dateStyle")||"long";save(true);applyTheme();render();toast("Settings saved");return}
   if(k==="addprog"){const n=v("name");if(!n)return;if(data.programs.some(p=>p.name.toLowerCase()===n.toLowerCase())){toast("That program already exists.");return}
     const p={id:uid(),name:n,links:[],drafts:[],intakes:[]};data.programs.push(p);normalize(data);cur=p.id;reset();save(true);render();return}
   if(k==="draft"){const body={title:v("title"),to:v("to"),subject:v("subject"),html:sanitize($("df-b").innerHTML)};
