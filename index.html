@@ -102,7 +102,8 @@ mark.miss{background:none;color:var(--bad);font-weight:600;outline:1.5px dashed 
 .grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 12px}
 .grid3{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr);gap:0 12px}
 @media(max-width:600px){.grid2,.grid3{grid-template-columns:minmax(0,1fr)}}
-.drow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) 44px;gap:8px;margin-bottom:8px}
+.drow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) 44px 44px 44px;gap:6px;margin-bottom:8px}
+@media(max-width:600px){.drow{grid-template-columns:minmax(0,1fr) 44px 44px 44px;padding-bottom:8px;border-bottom:1px solid var(--line)}.drow input[name=dl]{grid-column:1/-1}}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
 .chip{min-height:34px;font-size:14px;padding:0 10px;border-radius:99px;border-width:1px}
 .rte{border:1.5px solid var(--line);border-radius:10px;overflow:hidden}
@@ -146,7 +147,7 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const DEF_DATES=["Start date","End date","Orientation","Application deadline","Fee deadline"];
 const THEMES=[["Maroon","#800000"],["Navy","#1f3a68"],["Forest","#2c5e3f"],["Teal","#0f6b6b"],["Plum","#5b2a6e"],["Slate","#3d4655"],["Burnt orange","#a8471a"],["Rose","#9c2f5a"]];
-let data={programs:[],admin:[],faqs:[],notes:[],dateStyle:"long",settings:{tabs:["overview","programs","admin","faqs","notes","backup"],hidden:[],ov:{range:60,prog:"",label:"",limit:25,notes:true}}};
+let data={programs:[],admin:[],faqs:[],notes:[],dateStyle:"long",settings:{tabs:["overview","programs","admin","faqs","notes","backup"],hidden:[],tabNames:{},progOrder:["intakes","files","drafts"],ov:{range:60,prog:"",label:"",limit:25,notes:true}}};
 let mode="loading",readOnly=false,view="overview",cur=null,q="",fq="",fcat="",range=60;
 let ui={};const fill={};
 const reset=()=>{ui={}};
@@ -186,6 +187,8 @@ function htmlToText(h){const d=document.createElement("div");d.innerHTML=String(
 const LS="programhub-v2";let doc=null,writing=Promise.resolve(),saveT=null;
 function normalize(d){d=d&&typeof d==="object"?d:{};d.programs=Array.isArray(d.programs)?d.programs:[];d.admin=Array.isArray(d.admin)?d.admin:[];d.faqs=Array.isArray(d.faqs)?d.faqs:[];d.dateStyle=d.dateStyle||"long";d.settings=d.settings||{};d.notes=Array.isArray(d.notes)?d.notes:[];
   const ord=Array.isArray(d.settings.tabs)?d.settings.tabs.filter(v=>VIEWS.includes(v)):[];VIEWS.forEach(v=>{if(ord.includes(v))return;const b=ord.indexOf("backup");if(v!=="backup"&&b>-1)ord.splice(b,0,v);else ord.push(v)});d.settings.tabs=ord;
+  d.settings.tabNames=d.settings.tabNames&&typeof d.settings.tabNames==="object"?d.settings.tabNames:{};
+  {const PO=["intakes","files","drafts"];const po=Array.isArray(d.settings.progOrder)?d.settings.progOrder.filter(x=>PO.includes(x)):[];PO.forEach(x=>{if(!po.includes(x))po.push(x)});d.settings.progOrder=po}
   d.settings.hidden=Array.isArray(d.settings.hidden)?d.settings.hidden.filter(v=>v!=="backup"):[];
   d.settings.ov=Object.assign({range:60,prog:"",label:"",limit:25,notes:true},d.settings.ov||{});
   const fix=x=>{if(x.html==null)x.html=textToHtml(x.body||"")};
@@ -276,12 +279,13 @@ function labelsFor(scope){const s=new Set(["Program","Intake"]);const ps=scope==
 /* ---------- views ---------- */
 const VIEWS=["overview","programs","admin","faqs","notes","backup"];
 const NAMES={overview:"Overview",programs:"Programs",admin:"Admin drafts",faqs:"FAQs",notes:"Notes",backup:"Settings and backup"};
-function renderNav(){const vis=data.settings.tabs.filter(v=>!data.settings.hidden.includes(v));$("nav").innerHTML=vis.map(v=>`<a href="#${v}" aria-current="${v===view?"page":"false"}">${NAMES[v]}</a>`).join("")}
+const nm=v=>((data.settings.tabNames||{})[v]||"").trim()||NAMES[v];
+function renderNav(){const vis=data.settings.tabs.filter(v=>!data.settings.hidden.includes(v));$("nav").innerHTML=vis.map(v=>`<a href="#${v}" aria-current="${v===view?"page":"false"}">${esc(nm(v))}</a>`).join("")}
 function route(){const vis=data.settings.tabs.filter(v=>!data.settings.hidden.includes(v));const h=(location.hash||"").slice(1);view=VIEWS.includes(h)?h:vis[0]||"overview";if(!cur||!P())cur=data.programs[0]?.id||null;applyTheme();render()}
 window.addEventListener("hashchange",()=>{reset();route()});
 function render(){
   renderNav();
-  const note=mode==="local"?'<div class="banner">This hub is yours and is saved in this browser only. Download a backup from <a href="#backup">Settings and backup</a> now and then.</div>':readOnly?'<div class="banner">View only.</div>':"";
+  const note=mode==="local"?`<div class="banner">This hub is yours and is saved in this browser only. Download a backup from <a href="#backup">${esc(nm("backup"))}</a> now and then.</div>`:readOnly?'<div class="banner">View only.</div>':"";
   $("view").innerHTML=note+({overview:vOverview,programs:vPrograms,admin:vAdmin,faqs:vFaqs,notes:vNotes,backup:vBackup}[view])();
 }
 
@@ -295,8 +299,8 @@ function vOverview(){
   const filters=`<div class="row" style="background:var(--panel);border-radius:12px;padding:10px 12px;margin-bottom:8px;align-items:flex-end">${sel("ov-range","Time frame",[[7,"Next 7 days"],[14,"Next 2 weeks"],[30,"Next 30 days"],[60,"Next 60 days"],[90,"Next 3 months"],[180,"Next 6 months"],[365,"Next 12 months"]],o.range)}${sel("ov-prog","Program",[["","All programs"]].concat(data.programs.map(p=>[p.id,p.name])),o.prog)}${sel("ov-label","Type of date",[["","All dates"]].concat(labels.map(l=>[l.toLowerCase(),l])),o.label)}${sel("ov-limit","Show",[[10,"10 dates"],[25,"25 dates"],[50,"50 dates"],[9999,"All"]],o.limit)}<label class="small" style="margin:0;display:flex;gap:6px;align-items:center;min-height:44px"><input type="checkbox" id="ov-notes" ${o.notes?"checked":""} style="width:20px;height:20px"> Include my notes</label></div>`;
   const active=all.filter(x=>!x.start||days(x.start)>=-30),upcoming=all.filter(x=>x.start&&x.start>=t);
   const enr=upcoming.reduce((s,x)=>s+(+x.i.enrolled||0),0),tgt=upcoming.reduce((s,x)=>s+(+x.i.target||0),0),nxt=upcoming[0];
-  if(!data.programs.length)return`<h2>Welcome to your hub</h2><p>This hub is yours: your own programs, drafts, FAQs and colours. Start by pasting your academic calendar from Excel on the <a href="#backup">Settings and backup</a> page, or add programs one at a time on the <a href="#programs">Programs</a> page.</p>`;
-  let h=`<h2>Overview</h2><div class="stats">
+  if(!data.programs.length)return`<h2>Welcome to your hub</h2><p>This hub is yours: your own programs, drafts, FAQs and colours. Start by pasting your academic calendar from Excel on the <a href="#backup">${esc(nm("backup"))}</a> page, or add programs one at a time on the <a href="#programs">${esc(nm("programs"))}</a> page.</p>`;
+  let h=`<h2>${esc(nm("overview"))}</h2><div class="stats">
 <div class="stat"><b>${upcoming.length}</b><span>upcoming intakes across ${data.programs.length} programs</span></div>
 <div class="stat"><b>${enr}${tgt?` <small class="mut" style="font-size:.5em">of ${tgt}</small>`:""}</b><span>students enrolled in upcoming intakes</span></div>
 <div class="stat"><b>${nxt?esc(fmt(nxt.start,"short")):"None"}</b><span>${nxt?"next start: "+esc(nxt.p.name):"no upcoming start dates"}</span></div></div>`;
@@ -316,24 +320,25 @@ function vPrograms(){
     (readOnly?"":`<form class="inl" data-form="addprog"><input name="name" placeholder="New program name" aria-label="New program name" autocomplete="off"><button class="pri">Add</button></form><button style="width:100%;margin-top:10px" data-act="bulk">Add dates to many programs</button>`)+`</aside><section>`;
   if(ui.bulk&&!readOnly)return h+bulkForm()+`</section></div>`;
   const p=P();
-  if(!p)return h+`<h2>No program selected</h2><p class="mut">Add a program on the left, or paste your calendar on the <a href="#backup">Settings and backup</a> page.</p></section></div>`;
+  if(!p)return h+`<h2>No program selected</h2><p class="mut">Add a program on the left, or paste your calendar on the <a href="#backup">${esc(nm("backup"))}</a> page.</p></section></div>`;
   const ed=!readOnly;
   h+=ui.rename?`<form class="inl" data-form="rename"><input name="name" value="${esc(p.name)}" aria-label="Program name" required><button class="pri">Save</button><button type="button" class="ghost" data-act="cancel">Cancel</button></form>`:
     `<h3 style="margin:0"><span style="font-size:clamp(24px,3vw,32px);line-height:1.1">${esc(p.name)}</span>${ed?`<span class="row"><button class="ghost" data-act="rename">Rename</button>${ui.confirm==="prog"?`<button class="danger" data-act="delprog">Delete program and everything in it</button><button class="ghost" data-act="cancel">Keep</button>`:`<button class="ghost" data-act="ask" data-w="prog">Delete</button>`}</span>`:""}</h3>`;
-  h+=`<section class="box"><h3>Intakes and dates${ed&&ui.edit!=="newintake"?`<button data-act="newintake">Add intake</button>`:""}</h3>`;
-  if(ui.edit==="newintake")h+=intakeForm({name:"",target:"",enrolled:"",dates:DEF_DATES.map(l=>({label:l,date:""}))},"");
+  const mv=k=>ed?`<span class="row" style="gap:0">${ui.edit===`newintake`&&k==="intakes"||ui.edit==="addlink"&&k==="files"||ui.edit==="newdraft"&&k==="drafts"?"":`${k==="intakes"?`<button data-act="newintake">Add intake</button>`:k==="files"?`<button data-act="addlink">Add link</button>`:`<button data-act="newdraft">New draft</button>`}`}<button class="sq ghost" data-act="secmv" data-v="${k}" data-d="-1" aria-label="Move this section up" title="Move section up">↑</button><button class="sq ghost" data-act="secmv" data-v="${k}" data-d="1" aria-label="Move this section down" title="Move section down">↓</button></span>`:"";
+  const S={};
+  S.intakes=`<section class="box"><h3>Intakes and dates${mv("intakes")}</h3>`+(ui.edit==="newintake"?intakeForm({name:"",target:"",enrolled:"",dates:DEF_DATES.map(l=>({label:l,date:""}))},""):"");
   const ins=p.intakes.slice().sort((a,b)=>(startOf(a)||"9").localeCompare(startOf(b)||"9"));
-  h+=ins.length?`<div class="cards">`+ins.map(i=>ui.edit===i.id?`<div style="grid-column:1/-1">${intakeForm(i,i.id)}</div>`:`<div class="card"><h4><span>${esc(i.name)}</span>${status(i)}</h4>
+  S.intakes+=ins.length?`<div class="cards">`+ins.map(i=>ui.edit===i.id?`<div style="grid-column:1/-1">${intakeForm(i,i.id)}</div>`:`<div class="card"><h4><span>${esc(i.name)}</span>${status(i)}</h4>
 <div class="row" style="margin:8px 0">${ed?`<button class="sq" data-act="enr" data-id="${i.id}" data-d="-1" aria-label="One fewer enrolled">−</button>`:""}<span style="flex:1"><b style="font-size:22px">${+i.enrolled||0}</b> <span class="mut">enrolled${i.target?" of "+(+i.target):""}</span>${bar(i)}</span>${ed?`<button class="sq" data-act="enr" data-id="${i.id}" data-d="1" aria-label="One more enrolled">+</button>`:""}</div>
 <dl class="dl">${i.dates.filter(d=>d.label||d.date).map(d=>{const n=days(d.date);return`<dt>${esc(d.label)}</dt><dd class="${n!=null&&n<0?"past":""}">${esc(d.date?fmt(d.date,"short"):"—")}${n!=null&&n>=0&&n<=30?` <span class="soon">${away(n)}</span>`:""}</dd>`}).join("")}</dl>
 ${ed?`<div class="row"><button class="ghost" data-act="editintake" data-id="${i.id}">Edit dates</button><button class="ghost" data-act="dupintake" data-id="${i.id}">Copy to new term</button>${ui.confirm==="i"+i.id?`<button class="danger" data-act="delintake" data-id="${i.id}">Delete</button>`:`<button class="ghost" data-act="ask" data-w="i${i.id}">Delete</button>`}</div>`:""}</div>`).join("")+`</div>`:`<p class="empty">No intakes yet. Add one for each start date, for example "January 2027".</p>`;
-  h+=`</section><section class="box"><h3>Excel files${ed&&ui.edit!=="addlink"?`<button data-act="addlink">Add link</button>`:""}</h3>`;
-  h+=p.links.length?`<ul class="files">`+p.links.map((l,k)=>ui.edit==="link"+k?`<li>${linkForm(l,k)}</li>`:`<li class="file"><a class="name" href="${esc(l.url)}" target="_blank" rel="noopener"><span class="xl" aria-hidden="true">X</span><span>${esc(l.label)}<span class="host">${esc(host(l.url))}</span></span></a>${ed?`<button class="ghost" data-act="editlink" data-k="${k}">Edit</button>${ui.confirm==="l"+k?`<button class="danger" data-act="dellink" data-k="${k}">Remove</button>`:`<button class="ghost" data-act="ask" data-w="l${k}">Remove</button>`}`:""}</li>`).join("")+`</ul>`:`<p class="empty">No files yet. In SharePoint, open a file's ⋯ menu, choose Copy link, and paste it here.</p>`;
-  if(ui.edit==="addlink")h+=linkForm({label:"",url:""},"");
-  h+=`</section><section class="box"><h3>Email drafts for ${esc(p.name)}${ed&&ui.edit!=="newdraft"?`<button data-act="newdraft">New draft</button>`:""}</h3>${draftList(p.drafts,p.id)}</section>`;
+  S.intakes+=`</section>`;
+  S.files=`<section class="box"><h3>Excel files${mv("files")}</h3>`+(p.links.length?`<ul class="files">`+p.links.map((l,k)=>ui.edit==="link"+k?`<li>${linkForm(l,k)}</li>`:`<li class="file"><a class="name" href="${esc(l.url)}" target="_blank" rel="noopener"><span class="xl" aria-hidden="true">X</span><span>${esc(l.label)}<span class="host">${esc(host(l.url))}</span></span></a>${ed?`<button class="sq ghost" data-act="lkmv" data-k="${k}" data-d="-1" aria-label="Move up" ${k===0?"disabled":""}>↑</button><button class="sq ghost" data-act="lkmv" data-k="${k}" data-d="1" aria-label="Move down" ${k===p.links.length-1?"disabled":""}>↓</button><button class="ghost" data-act="editlink" data-k="${k}">Edit</button>${ui.confirm==="l"+k?`<button class="danger" data-act="dellink" data-k="${k}">Remove</button>`:`<button class="ghost" data-act="ask" data-w="l${k}">Remove</button>`}`:""}</li>`).join("")+`</ul>`:`<p class="empty">No files yet. In SharePoint, open a file's ⋯ menu, choose Copy link, and paste it here.</p>`)+(ui.edit==="addlink"?linkForm({label:"",url:""},""):"")+`</section>`;
+  S.drafts=`<section class="box"><h3>Email drafts for ${esc(p.name)}${mv("drafts")}</h3>${draftList(p.drafts,p.id)}</section>`;
+  h+=data.settings.progOrder.map(k=>S[k]).join("");
   return h+`</section></div>`;
 }
-function vAdmin(){return`<h2>Admin drafts</h2><p class="mut">Emails that aren't tied to one program: staff reminders, office notices, general replies. You can still fill in dates from any intake.</p><section class="box"><h3>Drafts${!readOnly&&ui.edit!=="newdraft"?`<button data-act="newdraft">New draft</button>`:""}</h3>${draftList(data.admin,"admin")}</section>`}
+function vAdmin(){return`<h2>${esc(nm("admin"))}</h2><p class="mut">Emails that aren't tied to one program: staff reminders, office notices, general replies. You can still fill in dates from any intake.</p><section class="box"><h3>Drafts${!readOnly&&ui.edit!=="newdraft"?`<button data-act="newdraft">New draft</button>`:""}</h3>${draftList(data.admin,"admin")}</section>`}
 
 function rte(id,html,ph,scope){
   return`<div class="rte"><div class="tools" role="toolbar" aria-label="Formatting">
@@ -358,13 +363,13 @@ function draftList(list,scope){
 <p class="subj">${d.to?`<span class="mut">To:</span> ${esc(d.to)}<br>`:""}<span class="mut">Subject:</span> ${fillText(d.subject,key,true)||'<span class="mut">(none)</span>'}</p>
 <div class="body">${bodyPrev||'<span class="mut">(empty)</span>'}</div>
 ${miss?`<p class="hint" style="margin:-4px 0 10px;color:var(--bad)">${miss} placeholder${miss>1?"s":""} still to fill in by hand (dashed in red).</p>`:""}
-<div class="row"><button class="pri" data-act="copybody" data-id="${d.id}" data-s="${scope}">Copy message</button><button data-act="copysubj" data-id="${d.id}" data-s="${scope}">Copy subject</button><a class="btn" href="${esc(mailto(d.to,fillText(d.subject,key),htmlToText(fillHtml(d.html,key))))}" target="_blank" rel="noopener" title="Opens a new email. Formatting isn't carried over this way.">Open in Outlook</a>${readOnly?"":`<button class="ghost" data-act="editdraft" data-id="${d.id}">Edit</button><button class="ghost" data-act="dupdraft" data-id="${d.id}" data-s="${scope}">Duplicate</button>${ui.confirm==="d"+d.id?`<button class="danger" data-act="deldraft" data-id="${d.id}" data-s="${scope}">Delete</button>`:`<button class="ghost" data-act="ask" data-w="d${d.id}">Delete</button>`}`}</div></article>`}).join("")+`</div>`;
+<div class="row"><button class="pri" data-act="copybody" data-id="${d.id}" data-s="${scope}">Copy message</button><button data-act="copysubj" data-id="${d.id}" data-s="${scope}">Copy subject</button><a class="btn" href="${esc(mailto(d.to,fillText(d.subject,key),htmlToText(fillHtml(d.html,key))))}" target="_blank" rel="noopener" title="Opens a new email. Formatting isn't carried over this way.">Open in Outlook</a>${readOnly?"":`<button class="ghost" data-act="editdraft" data-id="${d.id}">Edit</button><button class="sq ghost" data-act="drmv" data-id="${d.id}" data-s="${scope}" data-d="-1" aria-label="Move draft up" title="Move up">↑</button><button class="sq ghost" data-act="drmv" data-id="${d.id}" data-s="${scope}" data-d="1" aria-label="Move draft down" title="Move down">↓</button><button class="ghost" data-act="dupdraft" data-id="${d.id}" data-s="${scope}">Duplicate</button>${ui.confirm==="d"+d.id?`<button class="danger" data-act="deldraft" data-id="${d.id}" data-s="${scope}">Delete</button>`:`<button class="ghost" data-act="ask" data-w="d${d.id}">Delete</button>`}`}</div></article>`}).join("")+`</div>`;
   return h+`<p class="hint">Copy message keeps bold, lists and links when you paste into Outlook. Open in Outlook starts a new email but sends plain text only, so paste the copied message over it if you need the formatting.</p>`;
 }
 function keyFor(id,scope){let key=fill[id];if(key===undefined||(key&&!findI(key))){if(scope==="admin")return"";const p=data.programs.find(x=>x.id===scope);const n=p&&nextIntake(p);key=n?p.id+"|"+n.id:""}return key}
 
 function intakeForm(i,id){
-  const row=d=>`<div class="drow"><input name="dl" value="${esc(d.label)}" placeholder="e.g. Orientation" aria-label="Date name"><input name="dd" type="date" value="${esc(d.date)}" aria-label="Date"><button type="button" class="sq ghost" data-act="rmrow" aria-label="Remove this date">×</button></div>`;
+  const row=d=>`<div class="drow"><input name="dl" value="${esc(d.label)}" placeholder="e.g. Orientation" aria-label="Date name"><input name="dd" type="date" value="${esc(d.date)}" aria-label="Date"><button type="button" class="sq ghost" data-act="rowmv" data-d="-1" aria-label="Move this date up">↑</button><button type="button" class="sq ghost" data-act="rowmv" data-d="1" aria-label="Move this date down">↓</button><button type="button" class="sq ghost" data-act="rmrow" aria-label="Remove this date">×</button></div>`;
   return`<form class="form" data-form="intake" data-id="${id}"><div class="grid3"><div><label for="if-n">Intake name</label><input id="if-n" name="name" value="${esc(i.name)}" placeholder="e.g. January 2027" required></div><div><label for="if-t">Target seats</label><input id="if-t" name="target" type="number" min="0" value="${esc(i.target)}"></div><div><label for="if-e">Enrolled</label><input id="if-e" name="enrolled" type="number" min="0" value="${esc(i.enrolled)}"></div></div>
 <label>Dates</label><p class="hint" style="margin:0 0 8px">The date name is what you type in square brackets in your drafts, e.g. [Orientation].</p><div id="drows">${i.dates.map(row).join("")}</div>
 <button type="button" class="ghost" data-act="addrow">+ Add a date</button>
@@ -381,7 +386,7 @@ ${rte("df-b",d.html,"Write or paste your email. Formatting from Outlook or Word 
 function bulkForm(){
   const names=[...new Set(data.programs.flatMap(p=>p.intakes.map(i=>i.name)))].sort();
   const labels=[...new Set(DEF_DATES.concat(data.programs.flatMap(p=>p.intakes.flatMap(i=>i.dates.map(d=>d.label.trim()).filter(Boolean)))))];
-  const row=`<div class="drow"><input name="dl" list="bk-labels" placeholder="e.g. Orientation" aria-label="Date name"><input name="dd" type="date" aria-label="Date"><button type="button" class="sq ghost" data-act="rmrow" aria-label="Remove this date">×</button></div>`;
+  const row=`<div class="drow"><input name="dl" list="bk-labels" placeholder="e.g. Orientation" aria-label="Date name"><input name="dd" type="date" aria-label="Date"><button type="button" class="sq ghost" data-act="rowmv" data-d="-1" aria-label="Move this date up">↑</button><button type="button" class="sq ghost" data-act="rowmv" data-d="1" aria-label="Move this date down">↓</button><button type="button" class="sq ghost" data-act="rmrow" aria-label="Remove this date">×</button></div>`;
   return`<h2>Add dates to many programs</h2><p class="mut">Pick the programs, name the intake, and enter the dates once. They're added to every program you tick. If a program already has an intake with that name, its dates are updated.</p>
 <form class="form" data-form="bulk"><label>Programs</label><div class="row" style="margin-bottom:6px"><button type="button" class="ghost" data-act="bkall">Select all</button><button type="button" class="ghost" data-act="bknone">Clear</button></div>
 <div class="cards" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px">${data.programs.map(p=>`<label style="margin:0;font-weight:400;display:flex;gap:8px;align-items:center;min-height:44px;border:1.5px solid var(--line);border-radius:10px;padding:0 12px"><input type="checkbox" name="bp" value="${p.id}" style="width:20px;height:20px"${p.id===cur?" checked":""}> ${esc(p.name)}</label>`).join("")||'<p class="empty">Add some programs first.</p>'}</div>
@@ -399,7 +404,7 @@ function bulkForm(){
 function vNotes(){
   const list=data.notes.filter(n=>ui.showDone||!n.done).sort((a,b)=>(b.pin?1:0)-(a.pin?1:0)||(a.date||"9").localeCompare(b.date||"9")||(b.created||0)-(a.created||0));
   const doneCount=data.notes.filter(n=>n.done).length;
-  let h=`<h2>Notes</h2><p class="mut">Reminders and to-dos for yourself. Notes with a date also appear in the Overview's upcoming dates.</p>`;
+  let h=`<h2>${esc(nm("notes"))}</h2><p class="mut">Reminders and to-dos for yourself. Notes with a date also appear in the Overview's upcoming dates.</p>`;
   if(!readOnly)h+=ui.edit&&ui.edit.startsWith("n:")?"":noteForm({text:"",date:"",prog:""});
   h+=`<div class="row" style="margin:14px 0 8px;justify-content:space-between"><b>${list.length} note${list.length===1?"":"s"}</b>${doneCount?`<button class="ghost" data-act="togdone">${ui.showDone?"Hide":"Show"} ${doneCount} done</button>`:""}</div>`;
   if(!list.length)return h+`<p class="empty">${data.notes.length?"Everything's done.":"No notes yet."}</p>`;
@@ -417,7 +422,7 @@ function vFaqs(){
   const cats=[["","All"],["general","General"]].concat(data.programs.map(p=>[p.id,p.name]));
   const catName=c=>c==="general"||!c?"General":(data.programs.find(p=>p.id===c)||{}).name||"General";
   const list=data.faqs.filter(f=>(!fcat||(f.cat||"general")===fcat)&&(!fq||(f.q+" "+htmlToText(f.html)).toLowerCase().includes(fq)));
-  let h=`<h2>FAQs</h2><p class="mut">Answers to the questions students and staff ask most. Search, open, and copy the answer straight into an email.</p>
+  let h=`<h2>${esc(nm("faqs"))}</h2><p class="mut">Answers to the questions students and staff ask most. Search, open, and copy the answer straight into an email.</p>
 <div class="row" style="margin:14px 0"><input id="fsearch" type="search" placeholder="Search questions and answers" aria-label="Search FAQs" value="${esc(fq)}" style="flex:2 1 260px;width:auto"><select id="fcat" aria-label="Filter by program" style="flex:1 1 180px;width:auto">${cats.map(([v,n])=>`<option value="${v}"${v===fcat?" selected":""}>${esc(n)}</option>`).join("")}</select>${readOnly||ui.edit==="newfaq"?"":`<button class="pri" data-act="newfaq">Add FAQ</button>`}</div>`;
   if(ui.edit==="newfaq")h+=faqForm({q:"",html:"",cat:fcat||"general"});
   if(!data.faqs.length&&ui.edit!=="newfaq")return h+`<p class="empty">No FAQs yet. Add common questions like "When is the fee deadline?" or "What do I need for my first day?"</p>`;
@@ -431,15 +436,15 @@ function faqForm(f){
 /* ---------- settings and backup ---------- */
 function vBackup(){
   const c=data.settings.color||"#800000";
-  return`<h2>Settings and backup</h2>
+  return`<h2>${esc(nm("backup"))}</h2>
 <section class="box" style="margin-top:12px;border:0;padding:0"><h3>Make it yours</h3>
 <form data-form="settings"><div class="grid2"><div><label for="st-n">Hub name</label><input id="st-n" name="name" value="${esc(data.settings.name||"")}" placeholder="Program Hub"></div><div><label for="st-t">Line under the name</label><input id="st-t" name="tagline" value="${esc(data.settings.tagline||"")}" placeholder="Intakes, enrolments, spreadsheets, email drafts and FAQs for every program."></div></div>
 <label>Colour</label><div class="swatches">${THEMES.map(([n,v])=>`<button type="button" class="sw" style="background:${v}" data-act="color" data-v="${v}" aria-label="${n}" title="${n}" aria-pressed="${v.toLowerCase()===c.toLowerCase()}"></button>`).join("")}<span class="row"><input type="color" id="st-c" value="${esc(c)}" aria-label="Pick any colour"><span class="small mut">or pick any colour</span></span></div>
 <label for="dstyle">Date style in emails</label><select id="dstyle" name="dateStyle" style="width:auto">${[["long","Monday, January 11, 2027"],["nodow","January 11, 2027"],["short","Jan 11, 2027"]].map(([v,n])=>`<option value="${v}"${v===data.dateStyle?" selected":""}>${n}</option>`).join("")}</select>
 <div class="row" style="margin-top:12px"><button class="pri"${readOnly?" disabled":""}>Save settings</button></div></form></section>
-<section class="box"><h3>Arrange tabs</h3><p class="mut" style="margin-top:-6px">Move tabs up or down to change their order, and untick any you don't use. The first tab is the one that opens when you visit.</p>
-<ol style="list-style:none;padding:0;margin:0;display:grid;gap:6px;max-width:520px">${data.settings.tabs.map((v,k,arr)=>`<li class="row" style="border:1.5px solid var(--line);border-radius:10px;padding:4px 6px 4px 12px;flex-wrap:nowrap"><label style="margin:0;flex:1;display:flex;gap:10px;align-items:center;font-weight:600;min-height:44px"><input type="checkbox" data-tabshow="${v}" ${data.settings.hidden.includes(v)?"":"checked"} ${v==="backup"?"disabled":""} style="width:20px;height:20px"> ${NAMES[v]}</label><button type="button" class="sq ghost" data-act="tabmv" data-v="${v}" data-d="-1" aria-label="Move ${NAMES[v]} up" ${k===0?"disabled":""}>↑</button><button type="button" class="sq ghost" data-act="tabmv" data-v="${v}" data-d="1" aria-label="Move ${NAMES[v]} down" ${k===arr.length-1?"disabled":""}>↓</button></li>`).join("")}</ol>
-<p class="hint">Settings and backup always stays visible so you can't lock yourself out.</p></section>
+<section class="box"><h3>Arrange and rename tabs</h3><p class="mut" style="margin-top:-6px">Type a new name for any tab (leave it blank to keep the original), move tabs up or down, and untick any you don't use. The first tab is the one that opens when you visit.</p>
+<ol style="list-style:none;padding:0;margin:0;display:grid;gap:6px;max-width:520px">${data.settings.tabs.map((v,k,arr)=>`<li class="row" style="border:1.5px solid var(--line);border-radius:10px;padding:4px 6px 4px 12px;flex-wrap:nowrap"><input type="checkbox" data-tabshow="${v}" ${data.settings.hidden.includes(v)?"":"checked"} ${v==="backup"?"disabled":""} style="width:20px;height:20px;flex:none" aria-label="Show ${esc(nm(v))} tab"><input data-tabname="${v}" value="${esc((data.settings.tabNames||{})[v]||"")}" placeholder="${NAMES[v]}" aria-label="Name for the ${NAMES[v]} tab" style="flex:1;width:auto"><button type="button" class="sq ghost" data-act="tabmv" data-v="${v}" data-d="-1" aria-label="Move ${esc(nm(v))} up" ${k===0?"disabled":""}>↑</button><button type="button" class="sq ghost" data-act="tabmv" data-v="${v}" data-d="1" aria-label="Move ${esc(nm(v))} down" ${k===arr.length-1?"disabled":""}>↓</button></li>`).join("")}</ol>
+<p class="hint">The ${esc(nm("backup"))} tab always stays visible so you can't lock yourself out.</p></section>
 <section class="box"><h3>Paste your academic calendar</h3>
 <p>Copy the rows from Excel, including the header row, and paste them below. The first column is the program and the second is the intake name. Every other column with dates becomes a date for that intake, named after its column header. Columns named <b>Target</b> or <b>Enrolled</b> fill in the numbers. If an intake with the same name already exists, its dates are updated.</p>
 <div class="body" style="max-height:none;white-space:pre;overflow-x:auto;font-size:13px">Program	Intake	Start date	End date	Orientation	Application deadline	Target
@@ -493,6 +498,7 @@ document.addEventListener("change",e=>{const t=e.target;
   if(t.id==="range"){range=+t.value;render();return}
   if(t.id==="fcat"){fcat=t.value;render();return}
   if(/^ov-/.test(t.id)){const o=data.settings.ov,k=t.id.slice(3);o[k]=k==="notes"?t.checked:(k==="range"||k==="limit")?+t.value:t.value;if(!readOnly)save();render();return}
+  if(t.dataset.tabname!==undefined&&t.matches("[data-tabname]")){if(readOnly)return;data.settings.tabNames[t.dataset.tabname]=t.value.trim();save();renderNav();toast("Tab name saved");return}
   if(t.dataset.tabshow){if(readOnly)return;const h=data.settings.hidden,v=t.dataset.tabshow;if(t.checked)data.settings.hidden=h.filter(x=>x!==v);else if(!h.includes(v))h.push(v);save();render();return}
   if(t.dataset.done){if(readOnly)return;const n=data.notes.find(x=>x.id===t.dataset.done);if(n){n.done=t.checked;save();render();toast(n.done?"Marked done":"Marked not done")}return}
   if(t.id==="restfile"&&t.files[0]){const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d.programs))throw 0;data=normalize(d);cur=null;save(true);route();toast("Backup restored")}catch(x){$("restmsg").textContent="That file isn't a Program Hub backup."}};r.readAsText(t.files[0])}});
@@ -527,7 +533,7 @@ document.addEventListener("click",e=>{
   if(readOnly)return;
   if(a==="color"){$("st-c").value=b.dataset.v;document.querySelectorAll(".sw").forEach(s=>s.setAttribute("aria-pressed",s===b));document.documentElement.style.setProperty("--c",b.dataset.v);document.documentElement.style.setProperty("--headink",lum(b.dataset.v)>.4?"#16161a":"#fff");return}
   if(a==="import")return doImport();
-  if(a==="addrow"){const tpl=document.createElement("div");tpl.innerHTML=`<div class="drow"><input name="dl" placeholder="e.g. Orientation" aria-label="Date name"><input name="dd" type="date" aria-label="Date"><button type="button" class="sq ghost" data-act="rmrow" aria-label="Remove this date">×</button></div>`;$("drows").appendChild(tpl.firstChild);$("drows").lastChild.querySelector("input").focus();return}
+  if(a==="addrow"){const tpl=document.createElement("div");tpl.innerHTML=`<div class="drow"><input name="dl" placeholder="e.g. Orientation" aria-label="Date name"><input name="dd" type="date" aria-label="Date"><button type="button" class="sq ghost" data-act="rowmv" data-d="-1" aria-label="Move this date up">↑</button><button type="button" class="sq ghost" data-act="rowmv" data-d="1" aria-label="Move this date down">↓</button><button type="button" class="sq ghost" data-act="rmrow" aria-label="Remove this date">×</button></div>`;$("drows").appendChild(tpl.firstChild);$("drows").lastChild.querySelector("input").focus();return}
   if(a==="rmrow"){b.closest(".drow").remove();return}
   if(a==="shift"){const n=parseInt($("sh-n").value)||0,u=$("sh-u").value;if(!n)return;
     document.querySelectorAll('#drows input[name=dd]').forEach(inp=>{const d=pd(inp.value);if(!d)return;
@@ -540,6 +546,9 @@ document.addEventListener("click",e=>{
   if(a==="deldraft"){const l=list(b.dataset.s);const k=l.findIndex(x=>x.id===b.dataset.id);if(k>-1)l.splice(k,1);reset();save();render();return}
   if(a==="newfaq"){reset();ui.edit="newfaq";render();$("fq-q")?.focus();return}
   if(a==="editfaq"){reset();ui.edit=b.dataset.id;render();$("fq-q")?.focus();return}
+  if(a==="secmv"){const t=data.settings.progOrder,k=t.indexOf(b.dataset.v),j=k+(+b.dataset.d);if(k<0||j<0||j>=t.length){toast("Already at the "+(j<0?"top":"bottom")+".");return}[t[k],t[j]]=[t[j],t[k]];save();render();return}
+  if(a==="drmv"){const l=list(b.dataset.s),k=l.findIndex(x=>x.id===b.dataset.id),j=k+(+b.dataset.d);if(k<0||j<0||j>=l.length)return;[l[k],l[j]]=[l[j],l[k]];save();render();return}
+  if(a==="rowmv"){const r=b.closest(".drow"),sib=+b.dataset.d<0?r.previousElementSibling:r.nextElementSibling;if(!sib)return;if(+b.dataset.d<0)sib.before(r);else sib.after(r);b.focus();return}
   if(a==="tabmv"){const t=data.settings.tabs,k=t.indexOf(b.dataset.v),j=k+(+b.dataset.d);if(k<0||j<0||j>=t.length)return;[t[k],t[j]]=[t[j],t[k]];save();render();toast("Tab order saved");return}
   if(a==="bulk"){reset();ui.bulk=true;render();return}
   if(a==="bkall"||a==="bknone"){document.querySelectorAll("input[name=bp]").forEach(c=>c.checked=a==="bkall");return}
@@ -558,6 +567,7 @@ document.addEventListener("click",e=>{
   if(a==="enr"){const i=p.intakes.find(x=>x.id===b.dataset.id);if(!i)return;i.enrolled=String(Math.max(0,(+i.enrolled||0)+(+b.dataset.d)));save();render();return}
   if(a==="addlink"){reset();ui.edit="addlink";render();$("lf-l")?.focus();return}
   if(a==="editlink"){reset();ui.edit="link"+b.dataset.k;render();$("lf-l")?.focus();return}
+  if(a==="lkmv"){const k=+b.dataset.k,j=k+(+b.dataset.d);if(j<0||j>=p.links.length)return;[p.links[k],p.links[j]]=[p.links[j],p.links[k]];save();render();return}
   if(a==="dellink"){p.links.splice(+b.dataset.k,1);reset();save();render();return}
 });
 document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.id==="lnk-u"){e.preventDefault();e.target.parentElement.querySelector("[data-act=lnkok]").click()}});
