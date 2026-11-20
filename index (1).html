@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Program Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+/* VOICE: tidy office binder, calm and quick to scan
+   IDEA: a term planner: intakes and their dates drive everything else
+   PICTURE: the overview's upcoming-dates list with large hanging dates, then enrolment bars
+   COLOUR and TYPE: white and ink, one theme colour the owner picks; Figtree throughout
+   LAYOUT: coloured band with tabs, then one working view at a time */
+:root{color-scheme:light dark;--c:#800000;--headink:#fff;
+--bg:light-dark(#fff,#131314);--panel:light-dark(color-mix(in srgb,var(--c) 6%,#fff),color-mix(in srgb,var(--c) 14%,#18181a));
+--ink:light-dark(#16161a,#eeeef0);--mut:light-dark(#5e5e66,#a3a3ad);--line:light-dark(color-mix(in srgb,var(--c) 14%,#e4e4e8),color-mix(in srgb,var(--c) 20%,#2c2c30));
+--acc:light-dark(var(--c),color-mix(in srgb,var(--c) 45%,#fff));--head:var(--c);--on:light-dark(#fff,#111);--bad:light-dark(#b3261e,#ff8a80);--fill:light-dark(#fdeccc,#4a3a14)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Figtree,system-ui,sans-serif;overflow-x:clip}
+.band{padding:clamp(20px,3vw,36px) max(5vw,16px)}
+.wrap{max-width:1240px;margin:0 auto}
+header{background:var(--head);color:var(--headink);padding:clamp(20px,3vw,32px) max(5vw,16px) 0}
+h1{font-size:clamp(32px,4.5vw,44px);line-height:1.05;margin:0 0 4px;font-weight:800}
+header p{margin:0 0 16px;opacity:.9}
+nav{display:flex;gap:4px;overflow-x:auto}
+nav a{flex:none;color:var(--headink);text-decoration:none;font-weight:600;padding:12px 16px;border-radius:10px 10px 0 0;opacity:.85}
+nav a[aria-current=page]{background:var(--bg);color:var(--acc);opacity:1}
+h2{font-size:clamp(24px,3vw,32px);line-height:1.1;margin:0 0 6px}
+h3{font-size:20px;margin:0 0 12px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+a{color:var(--acc)}
+input,select,textarea{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1.5px solid var(--line);border-radius:10px;padding:9px 12px;width:100%}
+textarea{min-height:160px;resize:vertical;line-height:1.5}
+:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+label{display:block;font-weight:600;font-size:14px;margin:10px 0 4px}
+button,.btn{font:inherit;font-size:15px;font-weight:600;min-height:44px;padding:0 14px;border-radius:10px;border:1.5px solid var(--acc);background:var(--bg);color:var(--acc);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;white-space:nowrap}
+button.pri,.btn.pri{background:var(--acc);color:var(--on)}
+button.ghost{border-color:transparent;padding:0 10px}
+button.danger{border-color:var(--bad);color:var(--bad)}
+button.sq{width:44px;padding:0;font-size:20px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.end{justify-content:flex-end}
+.mut{color:var(--mut)}.small{font-size:14px}
+.banner{background:var(--panel);border-left:5px solid var(--acc);border-radius:8px;padding:10px 14px;font-size:15px;margin-bottom:18px}
+section.box{border-top:1px solid var(--line);padding-top:18px;margin-top:24px}
+.empty{color:var(--mut);font-size:15px;margin:4px 0}
+.hint{font-size:14px;color:var(--mut);margin:8px 0 0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:14px 0 6px}
+.stat{background:var(--panel);border-radius:14px;padding:14px 16px}
+.stat b{display:block;font-size:clamp(28px,4vw,38px);line-height:1.1;font-weight:800}
+.stat span{font-size:14px;color:var(--mut)}
+.ov{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:28px;margin-top:20px}
+@media(max-width:900px){.ov{grid-template-columns:minmax(0,1fr)}}
+.dates{list-style:none;margin:0;padding:0}
+.dates li{display:grid;grid-template-columns:64px minmax(0,1fr);gap:14px;padding:10px 0;border-bottom:1px solid var(--line);align-items:start}
+.cal{background:var(--panel);border-radius:10px;text-align:center;padding:6px 0;line-height:1.1}
+.cal small{display:block;font-size:13px;font-weight:600;color:var(--acc);text-transform:uppercase}
+.cal b{font-size:24px;font-weight:800}
+.dates .what{font-weight:600}.dates .sub{font-size:14px;color:var(--mut)}
+.soon{color:var(--acc);font-weight:600;white-space:nowrap}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th{text-align:left;font-size:13px;color:var(--mut);font-weight:600;padding:6px 8px;border-bottom:1.5px solid var(--line)}
+td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+td.num{text-align:right;white-space:nowrap}
+tr.click{cursor:pointer}tr.click:hover td{background:var(--panel)}
+.bar{height:10px;background:var(--panel);border-radius:99px;overflow:hidden;min-width:80px}
+.bar i{display:block;height:100%;background:var(--acc);border-radius:99px}
+.pill{font-size:13px;font-weight:600;padding:2px 9px;border-radius:99px;background:var(--panel);white-space:nowrap}
+.pill.full{background:var(--acc);color:var(--on)}
+.two{display:grid;grid-template-columns:minmax(0,270px) minmax(0,1fr);gap:28px;align-items:start}
+@media(max-width:820px){.two{grid-template-columns:minmax(0,1fr)}}
+.side{background:var(--panel);border-radius:16px;padding:14px}
+.tabs{list-style:none;margin:8px 0 12px;padding:0;display:grid;gap:6px;max-height:60vh;overflow:auto}
+.tab{width:100%;text-align:left;display:flex;justify-content:space-between;gap:8px;align-items:center;min-height:48px;padding:8px 12px;border-radius:10px;border:1.5px solid transparent;background:var(--bg);color:var(--ink);font:inherit;cursor:pointer}
+.tab[aria-current=true]{border-color:var(--acc);box-shadow:inset 5px 0 0 var(--acc)}
+.tab small{color:var(--mut);font-size:13px;white-space:nowrap}
+.inl{display:flex;gap:8px}.inl input{flex:1}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+.card{border:1.5px solid var(--line);border-radius:12px;padding:14px 16px}
+.card h4{margin:0 0 4px;font-size:17px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.dl{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:14px;margin:10px 0}
+.dl dt{color:var(--mut)}.dl dd{margin:0}
+.past{color:var(--mut);text-decoration:line-through}
+.files{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.file{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1.5px solid var(--line);border-radius:12px;padding:6px 8px 6px 14px}
+.file a.name{flex:1 1 220px;font-weight:600;color:var(--ink);text-decoration:none;display:flex;gap:10px;align-items:center;min-height:40px}
+.file a.name:hover{color:var(--acc);text-decoration:underline}
+.xl{flex:none;width:28px;height:28px;border-radius:6px;background:#1d6f42;color:#fff;font-size:13px;font-weight:800;display:grid;place-items:center}
+.host{color:var(--mut);font-size:13px;font-weight:400;display:block;overflow-wrap:anywhere}
+.drafts{display:grid;gap:14px}
+.draft{border:1.5px solid var(--line);border-radius:12px;padding:14px 16px}
+.draft h4{margin:0 0 6px;font-size:17px}
+.fillrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
+.fillrow select{flex:1 1 240px;width:auto}
+.subj{font-size:15px;margin:0 0 8px;overflow-wrap:anywhere}
+.body{font-size:15px;background:var(--panel);border-radius:8px;padding:10px 14px;max-height:260px;overflow:auto;margin:0 0 10px;overflow-wrap:anywhere}
+.body p,.ed p{margin:0 0 .6em}.body ul,.body ol,.ed ul,.ed ol{margin:0 0 .6em;padding-left:1.4em}
+mark{background:var(--fill);color:inherit;border-radius:3px;padding:0 2px}
+mark.miss{background:none;color:var(--bad);font-weight:600;outline:1.5px dashed var(--bad)}
+.form{border:1.5px dashed var(--acc);border-radius:12px;padding:14px 16px;margin:10px 0}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 12px}
+.grid3{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr);gap:0 12px}
+@media(max-width:600px){.grid2,.grid3{grid-template-columns:minmax(0,1fr)}}
+.drow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) 44px;gap:8px;margin-bottom:8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.chip{min-height:34px;font-size:14px;padding:0 10px;border-radius:99px;border-width:1px}
+.rte{border:1.5px solid var(--line);border-radius:10px;overflow:hidden}
+.tools{display:flex;flex-wrap:wrap;gap:2px;padding:4px;background:var(--panel);border-bottom:1px solid var(--line)}
+.tools button{min-height:38px;min-width:40px;padding:0 10px;border:0;background:none;color:var(--ink);font-size:15px}
+.tools button:hover{background:var(--bg)}
+.ed{min-height:200px;max-height:480px;overflow:auto;padding:12px 14px;outline:none;line-height:1.5}
+.ed:focus{box-shadow:inset 0 0 0 2px var(--acc)}
+.ed:empty::before{content:attr(data-ph);color:var(--mut)}
+.faq{border:1.5px solid var(--line);border-radius:12px;margin-bottom:10px}
+.faq summary{cursor:pointer;padding:12px 16px;font-weight:600;display:flex;justify-content:space-between;gap:10px;list-style:none;min-height:48px;align-items:center}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";font-size:22px;color:var(--acc);flex:none}
+.faq[open] summary::after{content:"−"}
+.faq .in{padding:0 16px 14px}
+.swatches{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0}
+.sw{width:52px;height:52px;border-radius:50%;border:3px solid var(--bg);box-shadow:0 0 0 1.5px var(--line);cursor:pointer;padding:0}
+.sw[aria-pressed=true]{box-shadow:0 0 0 3px var(--ink)}
+input[type=color]{width:64px;height:48px;padding:2px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:10px;font-size:15px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9;max-width:90vw}
+.toast.on{opacity:1}
+@media(prefers-reduced-motion:reduce){.toast{transition:none}}
+@media(max-width:600px){.stack thead{display:none}.stack tr{display:grid;padding-block:8px;border-bottom:1px solid var(--line)}.stack td{border:0;padding:3px 0;text-align:left}}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+<h1 id="hubname">Program Hub</h1>
+<p id="hubsub">Intakes, enrolments, spreadsheets, email drafts and FAQs for every program.</p>
+<nav id="nav" aria-label="Sections">
+<a href="#overview">Overview</a><a href="#programs">Programs</a><a href="#admin">Admin drafts</a><a href="#faqs">FAQs</a><a href="#backup">Settings and backup</a>
+</nav>
+</div></header>
+<main class="band"><div class="wrap" id="view"><p class="empty">Loading…</p></div></main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div id="clipbox" aria-hidden="true" style="position:fixed;left:-9999px;top:0;width:600px;background:#fff;color:#000"></div>
+
+<script>
+{
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const DEF_DATES=["Start date","End date","Orientation","Application deadline","Fee deadline"];
+const THEMES=[["Maroon","#800000"],["Navy","#1f3a68"],["Forest","#2c5e3f"],["Teal","#0f6b6b"],["Plum","#5b2a6e"],["Slate","#3d4655"],["Burnt orange","#a8471a"],["Rose","#9c2f5a"]];
+let data={programs:[],admin:[],faqs:[],dateStyle:"long",settings:{}};
+let mode="loading",readOnly=false,view="overview",cur=null,q="",fq="",fcat="",range=60;
+let ui={};const fill={};
+const reset=()=>{ui={}};
+
+/* ---------- dates ---------- */
+const pd=s=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||"");return m?new Date(+m[1],m[2]-1,+m[3]):null};
+const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d};
+const days=s=>{const d=pd(s);return d?Math.round((d-today())/864e5):null};
+function fmt(s,style){const d=pd(s);if(!d)return s||"";style=style||data.dateStyle;
+  if(style==="short")return d.toLocaleDateString("en-CA",{month:"short",day:"numeric",year:"numeric"});
+  if(style==="nodow")return d.toLocaleDateString("en-CA",{month:"long",day:"numeric",year:"numeric"});
+  return d.toLocaleDateString("en-CA",{weekday:"long",month:"long",day:"numeric",year:"numeric"})}
+const away=n=>n===0?"today":n===1?"tomorrow":n<0?(-n)+" days ago":"in "+n+" days";
+const startOf=i=>{const ds=(i.dates||[]).filter(d=>pd(d.date));const s=ds.find(d=>/start/i.test(d.label));return s?s.date:(ds.map(d=>d.date).sort()[0]||"")};
+
+/* ---------- rich text ---------- */
+const OK_TAGS={B:"b",STRONG:"b",I:"i",EM:"i",U:"u",P:"p",DIV:"p",BR:"br",UL:"ul",OL:"ol",LI:"li",A:"a",H1:"b",H2:"b",H3:"b",H4:"b"};
+function sanitize(html){
+  const doc=new DOMParser().parseFromString("<body>"+(html||"")+"</body>","text/html");const out=document.createElement("div");
+  (function walk(src,dst){src.childNodes.forEach(n=>{
+    if(n.nodeType===3){dst.appendChild(document.createTextNode(n.nodeValue));return}
+    if(n.nodeType!==1)return;const tag=n.tagName;if(/^(SCRIPT|STYLE|META|LINK|TITLE|HEAD|O:P|XML)$/i.test(tag))return;
+    let t=OK_TAGS[tag];const st=(n.getAttribute("style")||"").toLowerCase();let wrap=dst;
+    if(!t&&tag==="SPAN"||!t&&tag==="FONT"){const parts=[];if(/font-weight\s*:\s*(bold|[6-9]00)/.test(st))parts.push("b");if(/font-style\s*:\s*italic/.test(st))parts.push("i");if(/text-decoration[^;]*underline/.test(st))parts.push("u");
+      parts.forEach(p=>{const e=document.createElement(p);wrap.appendChild(e);wrap=e});walk(n,wrap);return}
+    if(!t){walk(n,dst);return}
+    const e=document.createElement(t);
+    if(t==="a"){const h=n.getAttribute("href")||"";if(/^(https?:|mailto:)/i.test(h)){e.setAttribute("href",h)}else{walk(n,dst);return}}
+    dst.appendChild(e);if(t!=="br")walk(n,e)})})(doc.body,out);
+  return out.innerHTML.replace(/<p><\/p>/g,"<p><br></p>");
+}
+const textToHtml=t=>String(t||"").split(/\n{2,}/).map(p=>"<p>"+esc(p).replace(/\n/g,"<br>")+"</p>").join("");
+function htmlToText(h){const d=document.createElement("div");d.innerHTML=String(h||"").replace(/<br\s*\/?>/gi,"\n").replace(/<\/(p|div|li|h\d)>/gi,"$&\n").replace(/<li>/gi,"<li>• ");return d.textContent.replace(/\n{3,}/g,"\n\n").trim()}
+
+/* ---------- storage ---------- */
+const LS="programhub-v2";let doc=null,writing=Promise.resolve(),saveT=null;
+function normalize(d){d=d&&typeof d==="object"?d:{};d.programs=Array.isArray(d.programs)?d.programs:[];d.admin=Array.isArray(d.admin)?d.admin:[];d.faqs=Array.isArray(d.faqs)?d.faqs:[];d.dateStyle=d.dateStyle||"long";d.settings=d.settings||{};
+  const fix=x=>{if(x.html==null)x.html=textToHtml(x.body||"")};
+  d.admin.forEach(fix);d.faqs.forEach(f=>{if(f.html==null)f.html=textToHtml(f.answer||"")});
+  d.programs.forEach(p=>{p.links=p.links||[];p.drafts=p.drafts||[];p.drafts.forEach(fix);p.intakes=p.intakes||[];p.intakes.forEach(i=>i.dates=i.dates||[])});
+  d.programs.sort((a,b)=>a.name.localeCompare(b.name));return d}
+function save(now){
+  data.updated=Date.now();
+  if(mode==="local"){try{localStorage.setItem(LS,JSON.stringify(data))}catch(e){toast("Couldn't save in this browser. Download a backup now.")}return}
+  if(mode!=="db")return;
+  clearTimeout(saveT);saveT=setTimeout(()=>{const body=JSON.parse(JSON.stringify(data));writing=writing.then(()=>doc.set(body)).catch(fail)},now?0:500);
+}
+function fail(e){
+  if(e&&e.code==="invalid_argument"){readOnly=true;render();toast("You can view this hub but not change it.")}
+  else if(e&&e.code==="quota_exceeded")toast("Storage is full. Delete some old drafts.");
+  else toast("That change didn't save. Check your connection.");
+}
+function startLocal(){
+  mode="local";let raw=null;try{raw=localStorage.getItem(LS)}catch(e){}
+  if(raw){try{data=normalize(JSON.parse(raw))}catch(e){data=normalize({})}}
+  else{let old=null;try{old=JSON.parse(localStorage.getItem("programhub-v1")||"null")}catch(e){}data=normalize({programs:old||[]});if(old)save()}
+  route();
+}
+function startDb(db){
+  mode="db";doc=db.doc("hub/main");let first=true;
+  const t=setTimeout(()=>{if(first)$("view").innerHTML='<p class="empty">Still trying to reach your saved data. Check your connection.</p>'},10000);
+  doc.onSnapshot(async s=>{
+    if(!s.metadata.fromCache)clearTimeout(t);
+    if(s.metadata.hasPendingWrites&&!first)return;
+    if(!s.exists){if(first&&!s.metadata.fromCache){first=false;
+        try{const old=await db.collection("programs").get();const progs=old.docs.map(d=>Object.assign({id:d.id},JSON.parse(JSON.stringify(d.data()))));data=normalize({programs:progs});if(progs.length&&!readOnly)save(true)}catch(e){data=normalize({})}
+        route()}return}
+    first=false;data=normalize(JSON.parse(JSON.stringify(s.data())));
+    if(document.querySelector("#view form"))return;route();
+  },e=>{clearTimeout(t);if(e&&e.code==="revoked"){readOnly=true;render()}else toast("Lost connection to saved data.")});
+}
+
+/* ---------- theme ---------- */
+function lum(hex){const m=/^#?([\da-f]{6})$/i.exec(hex||"");if(!m)return 0;const n=parseInt(m[1],16);const c=[n>>16,n>>8&255,n&255].map(v=>{v/=255;return v<=.03928?v/12.92:((v+.055)/1.055)**2.4});return .2126*c[0]+.7152*c[1]+.0722*c[2]}
+function applyTheme(){const c=/^#[\da-f]{6}$/i.test(data.settings.color||"")?data.settings.color:"#800000";const r=document.documentElement.style;r.setProperty("--c",c);r.setProperty("--headink",lum(c)>.4?"#16161a":"#fff");
+  $("hubname").textContent=data.settings.name||"Program Hub";document.title=data.settings.name||"Program Hub";
+  $("hubsub").textContent=data.settings.tagline||"Intakes, enrolments, spreadsheets, email drafts and FAQs for every program."}
+
+/* ---------- helpers ---------- */
+const P=()=>data.programs.find(p=>p.id===cur);
+const findI=key=>{const[a,b]=(key||"").split("|");const p=data.programs.find(x=>x.id===a);const i=p&&p.intakes.find(x=>x.id===b);return i?{p,i}:null};
+function toast(m){const t=$("toast");t.textContent=m;t.classList.add("on");clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove("on"),2800)}
+async function copyText(text,what){
+  try{await navigator.clipboard.writeText(text);toast(what+" copied");return}catch(e){}
+  const box=$("clipbox");box.textContent=text;if(selCopy(box)){toast(what+" copied");return}
+  toast("Copying is blocked here. Select the text and press Ctrl+C.");
+}
+function selCopy(el){try{const r=document.createRange();r.selectNodeContents(el);const s=getSelection();s.removeAllRanges();s.addRange(r);const ok=document.execCommand("copy");s.removeAllRanges();return ok}catch(e){return false}}
+async function copyRich(html,what){
+  const full='<div style="font-family:Calibri,Arial,sans-serif;font-size:11pt">'+html.replace(/<p>/g,'<p style="margin:0 0 10px">')+"</div>";
+  try{if(window.ClipboardItem&&navigator.clipboard.write){await navigator.clipboard.write([new ClipboardItem({"text/html":new Blob([full],{type:"text/html"}),"text/plain":new Blob([htmlToText(html)],{type:"text/plain"})})]);toast(what+" copied with formatting");return}}catch(e){}
+  const box=$("clipbox");box.innerHTML=full;if(selCopy(box)){toast(what+" copied with formatting");return}
+  copyText(htmlToText(html),what);
+}
+function cleanUrl(u){u=(u||"").trim();if(!u)return"";if(!/^https?:\/\//i.test(u))u="https://"+u;try{const x=new URL(u);return /^https?:$/.test(x.protocol)?x.href:""}catch(e){return""}}
+function host(u){try{const x=new URL(u);const f=decodeURIComponent(x.pathname.split("/").pop()||"");return x.hostname.replace(/^www\./,"")+(/\.\w{3,4}$/.test(f)?" · "+f:"")}catch(e){return u}}
+const mailto=(to,s,b)=>"mailto:"+encodeURIComponent(to||"").replace(/%40/g,"@").replace(/%2C/g,",")+"?subject="+encodeURIComponent(s||"")+"&body="+encodeURIComponent(b||"");
+function allIntakes(){const out=[];data.programs.forEach(p=>p.intakes.forEach(i=>out.push({p,i,start:startOf(i)})));return out.sort((a,b)=>(a.start||"9").localeCompare(b.start||"9"))}
+function nextIntake(p){const list=p.intakes.map(i=>({i,s:startOf(i)})).sort((a,b)=>(a.s||"9").localeCompare(b.s||"9"));const t=iso(today());return (list.find(x=>x.s>=t)||list[list.length-1]||{}).i}
+function status(i){const s=startOf(i),n=days(s),t=+i.target||0,e=+i.enrolled||0;
+  if(t&&e>=t)return'<span class="pill full">Full</span>';if(n==null)return'<span class="pill">No start date</span>';
+  if(n<0)return'<span class="pill">Started</span>';return`<span class="pill">Starts ${away(n)}</span>`}
+function bar(i){const t=+i.target||0,e=+i.enrolled||0;const pct=t?Math.min(100,Math.round(e/t*100)):0;return`<div class="bar" title="${e} of ${t||"?"}"><i style="width:${pct}%"></i></div>`}
+
+/* placeholders */
+function values(key){const f=findI(key);const v={};if(!f)return v;v["program"]=f.p.name;v["intake"]=f.i.name;
+  f.i.dates.forEach(d=>{if(d.label&&pd(d.date))v[d.label.trim().toLowerCase()]=fmt(d.date)});return v}
+const PH=/(\[[^\]\n]{1,60}\])/;
+function fillText(text,key,html){const v=values(key);
+  return String(text||"").split(PH).map(part=>{const m=/^\[([^\]]+)\]$/.exec(part);
+    if(!m)return html?esc(part):part;const k=m[1].trim().toLowerCase();
+    if(k in v)return html?`<mark>${esc(v[k])}</mark>`:v[k];return html?`<mark class="miss">${esc(part)}</mark>`:part}).join("")}
+function fillHtml(h,key,preview){const v=values(key);const box=document.createElement("div");box.innerHTML=sanitize(h);
+  const w=document.createTreeWalker(box,NodeFilter.SHOW_TEXT);const nodes=[];while(w.nextNode())if(PH.test(w.currentNode.nodeValue))nodes.push(w.currentNode);
+  nodes.forEach(n=>{const frag=document.createDocumentFragment();n.nodeValue.split(PH).forEach(part=>{const m=/^\[([^\]]+)\]$/.exec(part);
+    if(!m){frag.appendChild(document.createTextNode(part));return}const k=m[1].trim().toLowerCase();
+    if(k in v){if(preview){const mk=document.createElement("mark");mk.textContent=v[k];frag.appendChild(mk)}else frag.appendChild(document.createTextNode(v[k]))}
+    else if(preview){const mk=document.createElement("mark");mk.className="miss";mk.textContent=part;frag.appendChild(mk)}else frag.appendChild(document.createTextNode(part))});
+    n.parentNode.replaceChild(frag,n)});return box.innerHTML}
+function labelsFor(scope){const s=new Set(["Program","Intake"]);const ps=scope==="admin"?data.programs:data.programs.filter(p=>p.id===scope);
+  ps.forEach(p=>p.intakes.forEach(i=>i.dates.forEach(d=>d.label&&s.add(d.label.trim()))));if(s.size===2)DEF_DATES.forEach(x=>s.add(x));return[...s]}
+
+/* ---------- views ---------- */
+const VIEWS=["overview","programs","admin","faqs","backup"];
+function route(){const h=(location.hash||"#overview").slice(1);view=VIEWS.includes(h)?h:"overview";if(!cur||!P())cur=data.programs[0]?.id||null;applyTheme();render()}
+window.addEventListener("hashchange",()=>{reset();route()});
+function render(){
+  document.querySelectorAll("#nav a").forEach(a=>a.setAttribute("aria-current",a.getAttribute("href")==="#"+view?"page":"false"));
+  const note=mode==="local"?'<div class="banner">This hub is yours and is saved in this browser only. Download a backup from <a href="#backup">Settings and backup</a> now and then.</div>':readOnly?'<div class="banner">View only.</div>':"";
+  $("view").innerHTML=note+({overview:vOverview,programs:vPrograms,admin:vAdmin,faqs:vFaqs,backup:vBackup}[view])();
+}
+
+function vOverview(){
+  const all=allIntakes(),t=iso(today()),lim=iso(new Date(today().getTime()+range*864e5));
+  const up=[];data.programs.forEach(p=>p.intakes.forEach(i=>i.dates.forEach(d=>{if(pd(d.date)&&d.date>=t&&d.date<=lim)up.push({p,i,d})})));
+  up.sort((a,b)=>a.d.date.localeCompare(b.d.date));
+  const active=all.filter(x=>!x.start||days(x.start)>=-30),upcoming=all.filter(x=>x.start&&x.start>=t);
+  const enr=upcoming.reduce((s,x)=>s+(+x.i.enrolled||0),0),tgt=upcoming.reduce((s,x)=>s+(+x.i.target||0),0),nxt=upcoming[0];
+  if(!data.programs.length)return`<h2>Welcome to your hub</h2><p>This hub is yours: your own programs, drafts, FAQs and colours. Start by pasting your academic calendar from Excel on the <a href="#backup">Settings and backup</a> page, or add programs one at a time on the <a href="#programs">Programs</a> page.</p>`;
+  let h=`<h2>Overview</h2><div class="stats">
+<div class="stat"><b>${upcoming.length}</b><span>upcoming intakes across ${data.programs.length} programs</span></div>
+<div class="stat"><b>${enr}${tgt?` <small class="mut" style="font-size:.5em">of ${tgt}</small>`:""}</b><span>students enrolled in upcoming intakes</span></div>
+<div class="stat"><b>${nxt?esc(fmt(nxt.start,"short")):"None"}</b><span>${nxt?"next start: "+esc(nxt.p.name):"no upcoming start dates"}</span></div></div>`;
+  h+=`<div class="ov"><div><h3>Upcoming dates <select id="range" aria-label="Show dates for" style="width:auto;font-size:15px">${[30,60,90,180].map(n=>`<option value="${n}"${n===range?" selected":""}>Next ${n} days</option>`).join("")}</select></h3>`;
+  h+=up.length?`<ul class="dates">`+up.slice(0,40).map(x=>{const d=pd(x.d.date),n=days(x.d.date);return`<li><div class="cal"><small>${d.toLocaleDateString("en-CA",{month:"short"})}</small><b>${d.getDate()}</b></div><div><div class="what">${esc(x.d.label)} <span class="soon">${away(n)}</span></div><div class="sub">${esc(x.p.name)} · ${esc(x.i.name)} · ${esc(fmt(x.d.date,"nodow"))}</div></div></li>`}).join("")+`</ul>`:`<p class="empty">Nothing in the next ${range} days.</p>`;
+  h+=`</div><div><h3>Enrolment by intake</h3>`;
+  h+=active.length?`<table class="stack"><thead><tr><th>Program and intake</th><th>Starts</th><th>Enrolled</th><th></th><th>Status</th></tr></thead><tbody>`+active.map(x=>`<tr class="click" data-act="goprog" data-id="${x.p.id}"><td><b>${esc(x.p.name)}</b><br><span class="small mut">${esc(x.i.name)}</span></td><td style="white-space:nowrap">${esc(x.start?fmt(x.start,"short"):"—")}</td><td class="num">${+x.i.enrolled||0}${x.i.target?" / "+(+x.i.target):""}</td><td style="width:22%">${bar(x.i)}</td><td>${status(x.i)}</td></tr>`).join("")+`</tbody></table>`:`<p class="empty">No intakes yet.</p>`;
+  return h+`<p class="hint">Click a row to open that program. Update enrolment numbers on each program's page.</p></div></div>`;
+}
+
+function vPrograms(){
+  const list=data.programs.filter(p=>!q||p.name.toLowerCase().includes(q));
+  let h=`<div class="two"><aside class="side"><input id="search" type="search" placeholder="Search programs" aria-label="Search programs" value="${esc(q)}"><ul class="tabs">`+
+    (list.length?list.map(p=>`<li><button class="tab" data-act="open" data-id="${p.id}" aria-current="${p.id===cur}"><span>${esc(p.name)}</span><small>${p.intakes.length} intakes</small></button></li>`).join(""):`<li class="empty">${data.programs.length?"No matches.":"No programs yet."}</li>`)+`</ul>`+
+    (readOnly?"":`<form class="inl" data-form="addprog"><input name="name" placeholder="New program name" aria-label="New program name" autocomplete="off"><button class="pri">Add</button></form>`)+`</aside><section>`;
+  const p=P();
+  if(!p)return h+`<h2>No program selected</h2><p class="mut">Add a program on the left, or paste your calendar on the <a href="#backup">Settings and backup</a> page.</p></section></div>`;
+  const ed=!readOnly;
+  h+=ui.rename?`<form class="inl" data-form="rename"><input name="name" value="${esc(p.name)}" aria-label="Program name" required><button class="pri">Save</button><button type="button" class="ghost" data-act="cancel">Cancel</button></form>`:
+    `<h3 style="margin:0"><span style="font-size:clamp(24px,3vw,32px);line-height:1.1">${esc(p.name)}</span>${ed?`<span class="row"><button class="ghost" data-act="rename">Rename</button>${ui.confirm==="prog"?`<button class="danger" data-act="delprog">Delete program and everything in it</button><button class="ghost" data-act="cancel">Keep</button>`:`<button class="ghost" data-act="ask" data-w="prog">Delete</button>`}</span>`:""}</h3>`;
+  h+=`<section class="box"><h3>Intakes and dates${ed&&ui.edit!=="newintake"?`<button data-act="newintake">Add intake</button>`:""}</h3>`;
+  if(ui.edit==="newintake")h+=intakeForm({name:"",target:"",enrolled:"",dates:DEF_DATES.map(l=>({label:l,date:""}))},"");
+  const ins=p.intakes.slice().sort((a,b)=>(startOf(a)||"9").localeCompare(startOf(b)||"9"));
+  h+=ins.length?`<div class="cards">`+ins.map(i=>ui.edit===i.id?`<div style="grid-column:1/-1">${intakeForm(i,i.id)}</div>`:`<div class="card"><h4><span>${esc(i.name)}</span>${status(i)}</h4>
+<div class="row" style="margin:8px 0">${ed?`<button class="sq" data-act="enr" data-id="${i.id}" data-d="-1" aria-label="One fewer enrolled">−</button>`:""}<span style="flex:1"><b style="font-size:22px">${+i.enrolled||0}</b> <span class="mut">enrolled${i.target?" of "+(+i.target):""}</span>${bar(i)}</span>${ed?`<button class="sq" data-act="enr" data-id="${i.id}" data-d="1" aria-label="One more enrolled">+</button>`:""}</div>
+<dl class="dl">${i.dates.filter(d=>d.label||d.date).map(d=>{const n=days(d.date);return`<dt>${esc(d.label)}</dt><dd class="${n!=null&&n<0?"past":""}">${esc(d.date?fmt(d.date,"short"):"—")}${n!=null&&n>=0&&n<=30?` <span class="soon">${away(n)}</span>`:""}</dd>`}).join("")}</dl>
+${ed?`<div class="row"><button class="ghost" data-act="editintake" data-id="${i.id}">Edit dates</button><button class="ghost" data-act="dupintake" data-id="${i.id}">Copy to new term</button>${ui.confirm==="i"+i.id?`<button class="danger" data-act="delintake" data-id="${i.id}">Delete</button>`:`<button class="ghost" data-act="ask" data-w="i${i.id}">Delete</button>`}</div>`:""}</div>`).join("")+`</div>`:`<p class="empty">No intakes yet. Add one for each start date, for example "January 2027".</p>`;
+  h+=`</section><section class="box"><h3>Excel files${ed&&ui.edit!=="addlink"?`<button data-act="addlink">Add link</button>`:""}</h3>`;
+  h+=p.links.length?`<ul class="files">`+p.links.map((l,k)=>ui.edit==="link"+k?`<li>${linkForm(l,k)}</li>`:`<li class="file"><a class="name" href="${esc(l.url)}" target="_blank" rel="noopener"><span class="xl" aria-hidden="true">X</span><span>${esc(l.label)}<span class="host">${esc(host(l.url))}</span></span></a>${ed?`<button class="ghost" data-act="editlink" data-k="${k}">Edit</button>${ui.confirm==="l"+k?`<button class="danger" data-act="dellink" data-k="${k}">Remove</button>`:`<button class="ghost" data-act="ask" data-w="l${k}">Remove</button>`}`:""}</li>`).join("")+`</ul>`:`<p class="empty">No files yet. In SharePoint, open a file's ⋯ menu, choose Copy link, and paste it here.</p>`;
+  if(ui.edit==="addlink")h+=linkForm({label:"",url:""},"");
+  h+=`</section><section class="box"><h3>Email drafts for ${esc(p.name)}${ed&&ui.edit!=="newdraft"?`<button data-act="newdraft">New draft</button>`:""}</h3>${draftList(p.drafts,p.id)}</section>`;
+  return h+`</section></div>`;
+}
+function vAdmin(){return`<h2>Admin drafts</h2><p class="mut">Emails that aren't tied to one program: staff reminders, office notices, general replies. You can still fill in dates from any intake.</p><section class="box"><h3>Drafts${!readOnly&&ui.edit!=="newdraft"?`<button data-act="newdraft">New draft</button>`:""}</h3>${draftList(data.admin,"admin")}</section>`}
+
+function rte(id,html,ph,scope){
+  return`<div class="rte"><div class="tools" role="toolbar" aria-label="Formatting">
+<button type="button" data-cmd="bold" title="Bold (Ctrl+B)"><b>B</b></button><button type="button" data-cmd="italic" title="Italic (Ctrl+I)"><i>I</i></button><button type="button" data-cmd="underline" title="Underline (Ctrl+U)"><u>U</u></button>
+<button type="button" data-cmd="insertUnorderedList" title="Bulleted list">• List</button><button type="button" data-cmd="insertOrderedList" title="Numbered list">1. List</button>
+<button type="button" data-cmd="link" title="Add a link">Link</button><button type="button" data-cmd="removeFormat" title="Clear formatting">Clear</button></div>
+<div class="ed" id="${id}" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Message" data-ph="${esc(ph)}">${sanitize(html)}</div></div>
+${scope?`<div class="chips"><span class="small mut" style="align-self:center">Insert:</span>${labelsFor(scope).map(l=>`<button type="button" class="chip" data-ins="[${esc(l)}]">[${esc(l)}]</button>`).join("")}</div>`:""}`;
+}
+
+function draftList(list,scope){
+  let h="";if(ui.edit==="newdraft")h+=draftForm({title:"",to:"",subject:"",html:""},scope);
+  const opts=scope==="admin"?[`<option value="">No intake (don't fill dates)</option>`].concat(data.programs.filter(p=>p.intakes.length).map(p=>`<optgroup label="${esc(p.name)}">`+p.intakes.map(i=>`<option value="${p.id}|${i.id}">${esc(p.name)} · ${esc(i.name)}</option>`).join("")+`</optgroup>`)):
+    (()=>{const p=data.programs.find(x=>x.id===scope);return p.intakes.length?p.intakes.slice().sort((a,b)=>(startOf(a)||"9").localeCompare(startOf(b)||"9")).map(i=>`<option value="${p.id}|${i.id}">${esc(i.name)}${startOf(i)?" (starts "+esc(fmt(startOf(i),"short"))+")":""}</option>`):[`<option value="">Add an intake to fill dates</option>`]})();
+  if(!list.length&&ui.edit!=="newdraft")return h+`<p class="empty">No drafts yet. Write [Start date], [Orientation] and other date names in square brackets, and they'll fill in from the intake you pick.</p>`;
+  h+=`<div class="drafts">`+list.map(d=>{
+    if(ui.edit===d.id)return draftForm(d,scope);
+    const key=keyFor(d.id,scope);const sel=opts.join("").replace(`value="${key}"`,`value="${key}" selected`);
+    const bodyPrev=fillHtml(d.html,key,true);const miss=(bodyPrev.match(/class="miss"/g)||[]).length+(fillText(d.subject,key,true).match(/class="miss"/g)||[]).length;
+    return`<article class="draft"><h4>${esc(d.title||"Untitled draft")}</h4>
+<div class="fillrow"><label for="f-${d.id}" style="margin:0">Fill dates for</label><select id="f-${d.id}" data-fill="${d.id}">${sel}</select></div>
+<p class="subj">${d.to?`<span class="mut">To:</span> ${esc(d.to)}<br>`:""}<span class="mut">Subject:</span> ${fillText(d.subject,key,true)||'<span class="mut">(none)</span>'}</p>
+<div class="body">${bodyPrev||'<span class="mut">(empty)</span>'}</div>
+${miss?`<p class="hint" style="margin:-4px 0 10px;color:var(--bad)">${miss} placeholder${miss>1?"s":""} still to fill in by hand (dashed in red).</p>`:""}
+<div class="row"><button class="pri" data-act="copybody" data-id="${d.id}" data-s="${scope}">Copy message</button><button data-act="copysubj" data-id="${d.id}" data-s="${scope}">Copy subject</button><a class="btn" href="${esc(mailto(d.to,fillText(d.subject,key),htmlToText(fillHtml(d.html,key))))}" target="_blank" rel="noopener" title="Opens a new email. Formatting isn't carried over this way.">Open in Outlook</a>${readOnly?"":`<button class="ghost" data-act="editdraft" data-id="${d.id}">Edit</button><button class="ghost" data-act="dupdraft" data-id="${d.id}" data-s="${scope}">Duplicate</button>${ui.confirm==="d"+d.id?`<button class="danger" data-act="deldraft" data-id="${d.id}" data-s="${scope}">Delete</button>`:`<button class="ghost" data-act="ask" data-w="d${d.id}">Delete</button>`}`}</div></article>`}).join("")+`</div>`;
+  return h+`<p class="hint">Copy message keeps bold, lists and links when you paste into Outlook. Open in Outlook starts a new email but sends plain text only, so paste the copied message over it if you need the formatting.</p>`;
+}
+function keyFor(id,scope){let key=fill[id];if(key===undefined||(key&&!findI(key))){if(scope==="admin")return"";const p=data.programs.find(x=>x.id===scope);const n=p&&nextIntake(p);key=n?p.id+"|"+n.id:""}return key}
+
+function intakeForm(i,id){
+  const row=d=>`<div class="drow"><input name="dl" value="${esc(d.label)}" placeholder="e.g. Orientation" aria-label="Date name"><input name="dd" type="date" value="${esc(d.date)}" aria-label="Date"><button type="button" class="sq ghost" data-act="rmrow" aria-label="Remove this date">×</button></div>`;
+  return`<form class="form" data-form="intake" data-id="${id}"><div class="grid3"><div><label for="if-n">Intake name</label><input id="if-n" name="name" value="${esc(i.name)}" placeholder="e.g. January 2027" required></div><div><label for="if-t">Target seats</label><input id="if-t" name="target" type="number" min="0" value="${esc(i.target)}"></div><div><label for="if-e">Enrolled</label><input id="if-e" name="enrolled" type="number" min="0" value="${esc(i.enrolled)}"></div></div>
+<label>Dates</label><p class="hint" style="margin:0 0 8px">The date name is what you type in square brackets in your drafts, e.g. [Orientation].</p><div id="drows">${i.dates.map(row).join("")}</div>
+<button type="button" class="ghost" data-act="addrow">+ Add a date</button>
+<div class="row" style="margin-top:12px;background:var(--panel);border-radius:10px;padding:10px"><span class="small"><b>Move every date</b></span><input id="sh-n" type="number" value="0" style="width:90px" aria-label="How many"><select id="sh-u" style="width:auto" aria-label="Unit"><option value="w">weeks</option><option value="m">months</option><option value="d">days</option></select><button type="button" data-act="shift">Apply</button><span class="small mut">Use a negative number to move dates earlier.</span></div>
+<div class="row end" style="margin-top:12px"><button type="button" class="ghost" data-act="cancel">Cancel</button><button class="pri">Save intake</button></div></form>`;
+}
+function linkForm(l,k){return`<form class="form" data-form="link" data-k="${k}"><div class="grid2"><div><label for="lf-l">Name</label><input id="lf-l" name="label" value="${esc(l.label)}" placeholder="e.g. January 2027 tracker" required></div><div><label for="lf-u">SharePoint link</label><input id="lf-u" name="url" value="${esc(l.url)}" placeholder="Paste the link" required></div></div><div class="row end" style="margin-top:12px"><button type="button" class="ghost" data-act="cancel">Cancel</button><button class="pri">Save link</button></div></form>`}
+function draftForm(d,scope){
+  return`<form class="form" data-form="draft" data-id="${d.id||""}" data-s="${scope}"><div class="grid2"><div><label for="df-t">Draft name</label><input id="df-t" name="title" value="${esc(d.title)}" placeholder="e.g. Welcome email" required></div><div><label for="df-to">To (optional)</label><input id="df-to" name="to" value="${esc(d.to)}" placeholder="e.g. office@college.ca"></div></div><label for="df-s">Subject</label><input id="df-s" name="subject" value="${esc(d.subject)}" placeholder="e.g. Welcome to [Program], starting [Start date]"><label>Message</label>
+${rte("df-b",d.html,"Write or paste your email. Formatting from Outlook or Word is kept.",scope)}
+<p class="hint">Anything else in square brackets, like [Student name], stays as-is and is marked so you remember to fill it in.</p><div class="row end" style="margin-top:12px"><button type="button" class="ghost" data-act="cancel">Cancel</button><button class="pri">Save draft</button></div></form>`}
+
+/* ---------- FAQs ---------- */
+function vFaqs(){
+  const cats=[["","All"],["general","General"]].concat(data.programs.map(p=>[p.id,p.name]));
+  const catName=c=>c==="general"||!c?"General":(data.programs.find(p=>p.id===c)||{}).name||"General";
+  const list=data.faqs.filter(f=>(!fcat||(f.cat||"general")===fcat)&&(!fq||(f.q+" "+htmlToText(f.html)).toLowerCase().includes(fq)));
+  let h=`<h2>FAQs</h2><p class="mut">Answers to the questions students and staff ask most. Search, open, and copy the answer straight into an email.</p>
+<div class="row" style="margin:14px 0"><input id="fsearch" type="search" placeholder="Search questions and answers" aria-label="Search FAQs" value="${esc(fq)}" style="flex:2 1 260px;width:auto"><select id="fcat" aria-label="Filter by program" style="flex:1 1 180px;width:auto">${cats.map(([v,n])=>`<option value="${v}"${v===fcat?" selected":""}>${esc(n)}</option>`).join("")}</select>${readOnly||ui.edit==="newfaq"?"":`<button class="pri" data-act="newfaq">Add FAQ</button>`}</div>`;
+  if(ui.edit==="newfaq")h+=faqForm({q:"",html:"",cat:fcat||"general"});
+  if(!data.faqs.length&&ui.edit!=="newfaq")return h+`<p class="empty">No FAQs yet. Add common questions like "When is the fee deadline?" or "What do I need for my first day?"</p>`;
+  if(!list.length)return h+`<p class="empty">No FAQs match.</p>`;
+  return h+list.map(f=>ui.edit===f.id?faqForm(f):`<details class="faq"${ui.open===f.id?" open":""}><summary><span>${esc(f.q)} <span class="pill" style="margin-left:6px">${esc(catName(f.cat))}</span></span></summary><div class="in"><div class="body" style="max-height:none">${sanitize(f.html)}</div><div class="row"><button class="pri" data-act="copyfaq" data-id="${f.id}">Copy answer</button>${readOnly?"":`<button class="ghost" data-act="editfaq" data-id="${f.id}">Edit</button>${ui.confirm==="f"+f.id?`<button class="danger" data-act="delfaq" data-id="${f.id}">Delete</button>`:`<button class="ghost" data-act="ask" data-w="f${f.id}" data-open="${f.id}">Delete</button>`}`}</div></div></details>`).join("");
+}
+function faqForm(f){
+  const cats=[["general","General"]].concat(data.programs.map(p=>[p.id,p.name]));
+  return`<form class="form" data-form="faq" data-id="${f.id||""}"><div class="grid2"><div><label for="fq-q">Question</label><input id="fq-q" name="q" value="${esc(f.q)}" required placeholder="e.g. When is the fee deadline?"></div><div><label for="fq-c">Program</label><select id="fq-c" name="cat">${cats.map(([v,n])=>`<option value="${v}"${v===(f.cat||"general")?" selected":""}>${esc(n)}</option>`).join("")}</select></div></div><label>Answer</label>${rte("fq-a",f.html,"Write the answer. Bold, lists and links are kept when you copy it.","")}<div class="row end" style="margin-top:12px"><button type="button" class="ghost" data-act="cancel">Cancel</button><button class="pri">Save FAQ</button></div></form>`}
+
+/* ---------- settings and backup ---------- */
+function vBackup(){
+  const c=data.settings.color||"#800000";
+  return`<h2>Settings and backup</h2>
+<section class="box" style="margin-top:12px;border:0;padding:0"><h3>Make it yours</h3>
+<form data-form="settings"><div class="grid2"><div><label for="st-n">Hub name</label><input id="st-n" name="name" value="${esc(data.settings.name||"")}" placeholder="Program Hub"></div><div><label for="st-t">Line under the name</label><input id="st-t" name="tagline" value="${esc(data.settings.tagline||"")}" placeholder="Intakes, enrolments, spreadsheets, email drafts and FAQs for every program."></div></div>
+<label>Colour</label><div class="swatches">${THEMES.map(([n,v])=>`<button type="button" class="sw" style="background:${v}" data-act="color" data-v="${v}" aria-label="${n}" title="${n}" aria-pressed="${v.toLowerCase()===c.toLowerCase()}"></button>`).join("")}<span class="row"><input type="color" id="st-c" value="${esc(c)}" aria-label="Pick any colour"><span class="small mut">or pick any colour</span></span></div>
+<label for="dstyle">Date style in emails</label><select id="dstyle" name="dateStyle" style="width:auto">${[["long","Monday, January 11, 2027"],["nodow","January 11, 2027"],["short","Jan 11, 2027"]].map(([v,n])=>`<option value="${v}"${v===data.dateStyle?" selected":""}>${n}</option>`).join("")}</select>
+<div class="row" style="margin-top:12px"><button class="pri"${readOnly?" disabled":""}>Save settings</button></div></form></section>
+<section class="box"><h3>Paste your academic calendar</h3>
+<p>Copy the rows from Excel, including the header row, and paste them below. The first column is the program and the second is the intake name. Every other column with dates becomes a date for that intake, named after its column header. Columns named <b>Target</b> or <b>Enrolled</b> fill in the numbers. If an intake with the same name already exists, its dates are updated.</p>
+<div class="body" style="max-height:none;white-space:pre;overflow-x:auto;font-size:13px">Program	Intake	Start date	End date	Orientation	Application deadline	Target
+Personal Support Worker	January 2027	2027-01-11	2027-08-27	2027-01-07	2026-12-11	30</div>
+<p class="small mut" style="margin-top:-4px">Example only. Use your real calendar.</p>
+<label for="imp">Paste here</label><textarea id="imp" placeholder="Paste rows from Excel"></textarea>
+<div class="row" style="margin-top:10px"><label for="dorder" style="margin:0">Dates like 03/04/2027 mean</label><select id="dorder" style="width:auto"><option value="mdy">March 4 (MM/DD/YYYY)</option><option value="dmy">3 April (DD/MM/YYYY)</option></select><button class="pri" data-act="import" ${readOnly?"disabled":""}>Import calendar</button></div>
+<p id="impmsg" class="hint"></p></section>
+<section class="box"><h3>Back up everything</h3><p>Saves all your programs, intakes, links, drafts, FAQs and settings as one file. Keep a copy on OneDrive. You can also use it to move your hub to another computer.</p>
+<div class="row"><button class="pri" data-act="export">Download backup</button><button data-act="copyjson">Copy backup text</button></div></section>
+<section class="box"><h3>Restore from a backup</h3><p>This replaces everything in this hub with the backup.</p>
+<input type="file" id="restfile" accept=".json,application/json" style="width:auto"><p id="restmsg" class="hint"></p></section>`;
+}
+
+/* ---------- import / export ---------- */
+function parseDate(s,order){s=(s||"").trim();if(!s)return"";let m;
+  if(m=/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/.exec(s))return mk(+m[1],+m[2],+m[3]);
+  if(m=/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/.exec(s)){let a=+m[1],b=+m[2],y=+m[3];if(y<100)y+=2000;
+    if(a>12)return mk(y,b,a);if(b>12)return mk(y,a,b);return order==="dmy"?mk(y,b,a):mk(y,a,b)}
+  const d=new Date(s.replace(/(\d)(st|nd|rd|th)\b/,"$1"));return isNaN(d)?null:iso(d);
+  function mk(y,mo,da){const d=new Date(y,mo-1,da);return d.getMonth()===mo-1?iso(d):null}}
+function doImport(){
+  const txt=$("imp").value.replace(/\r/g,"").trim();const msg=$("impmsg");
+  if(!txt){msg.textContent="Paste your calendar first.";return}
+  const rows=txt.split("\n").map(r=>r.split(r.includes("\t")?"\t":",").map(c=>c.trim().replace(/^"|"$/g,"")));
+  const head=rows.shift();if(head.length<3){msg.textContent="I need at least three columns: Program, Intake and one date.";return}
+  const order=$("dorder").value;let nP=0,nI=0,bad=0;
+  rows.filter(r=>r.some(c=>c)).forEach(r=>{const pn=r[0],inn=r[1]||"Intake";if(!pn)return;
+    let p=data.programs.find(x=>x.name.toLowerCase()===pn.toLowerCase());if(!p){p={id:uid(),name:pn,links:[],drafts:[],intakes:[]};data.programs.push(p);nP++}
+    let i=p.intakes.find(x=>x.name.toLowerCase()===inn.toLowerCase());if(!i){i={id:uid(),name:inn,target:"",enrolled:"",dates:[]};p.intakes.push(i);nI++}
+    head.slice(2).forEach((h,k)=>{const v=r[k+2]||"",hl=h.trim();if(!hl)return;
+      if(/^target/i.test(hl)){if(v!=="")i.target=String(parseInt(v)||0);return}
+      if(/^enrol/i.test(hl)){if(v!=="")i.enrolled=String(parseInt(v)||0);return}
+      if(!v)return;const d=parseDate(v,order);if(!d){bad++;return}
+      const ex=i.dates.find(x=>x.label.toLowerCase()===hl.toLowerCase());if(ex)ex.date=d;else i.dates.push({label:hl,date:d})})});
+  normalize(data);save(true);cur=cur||data.programs[0]?.id;render();
+  $("impmsg").textContent=`Done: ${nP} new program${nP===1?"":"s"}, ${nI} new intake${nI===1?"":"s"}${bad?`, ${bad} date${bad>1?"s":""} I couldn't read (left blank)`:""}.`;toast("Calendar imported");
+}
+async function doExport(){
+  const text=JSON.stringify(data,null,2),name=(data.settings.name||"program-hub").replace(/[^\w-]+/g,"-").toLowerCase()+"-backup-"+iso(today())+".json";
+  try{if(window.claude&&window.claude.use){const dl=await window.claude.use("downloads");if(dl){await dl.save({filename:name,data:text});toast("Backup saved");return}}}catch(e){}
+  try{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type:"application/json"}));a.download=name;document.body.appendChild(a);a.click();a.remove();toast("Backup downloaded")}catch(e){copyText(text,"Backup text")}
+}
+
+/* ---------- events ---------- */
+document.addEventListener("input",e=>{const t=e.target;
+  if(t.id==="search"||t.id==="fsearch"){const v=t.value.trim().toLowerCase();if(t.id==="search")q=v;else fq=v;const pos=t.selectionStart,id=t.id;render();const s=$(id);s.focus();s.setSelectionRange(pos,pos)}
+  if(t.id==="st-c"){document.documentElement.style.setProperty("--c",t.value);document.documentElement.style.setProperty("--headink",lum(t.value)>.4?"#16161a":"#fff")}});
+document.addEventListener("change",e=>{const t=e.target;
+  if(t.dataset.fill){fill[t.dataset.fill]=t.value;render();return}
+  if(t.id==="range"){range=+t.value;render();return}
+  if(t.id==="fcat"){fcat=t.value;render();return}
+  if(t.id==="restfile"&&t.files[0]){const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d.programs))throw 0;data=normalize(d);cur=null;save(true);route();toast("Backup restored")}catch(x){$("restmsg").textContent="That file isn't a Program Hub backup."}};r.readAsText(t.files[0])}});
+/* keep the editor's selection when toolbar or insert buttons are pressed */
+document.addEventListener("mousedown",e=>{if(e.target.closest(".tools button,[data-ins]"))e.preventDefault()});
+document.addEventListener("paste",e=>{const ed=e.target.closest&&e.target.closest(".ed");if(!ed)return;e.preventDefault();
+  const h=e.clipboardData.getData("text/html"),t=e.clipboardData.getData("text/plain");
+  document.execCommand("insertHTML",false,h?sanitize(h.replace(/^[\s\S]*<!--StartFragment-->|<!--EndFragment-->[\s\S]*$/g,"")):textToHtml(t))});
+document.addEventListener("click",e=>{
+  const cmd=e.target.closest("[data-cmd]");
+  if(cmd){const ed=cmd.closest(".rte").querySelector(".ed");if(!ed.contains(getSelection().anchorNode))ed.focus();
+    if(cmd.dataset.cmd==="link"){const s=getSelection();if(!s.toString()){toast("Select the words to turn into a link first.");return}ui.linkRange=s.getRangeAt(0).cloneRange();
+      const box=document.createElement("div");box.className="row";box.style.margin="8px";box.innerHTML='<input id="lnk-u" placeholder="Paste the web address" style="flex:1;width:auto" aria-label="Link address"><button type="button" class="pri" data-act="lnkok">Add link</button><button type="button" class="ghost" data-act="lnkno">Cancel</button>';
+      cmd.closest(".tools").after(box);$("lnk-u").focus();return}
+    document.execCommand(cmd.dataset.cmd,false,null);return}
+  const ins=e.target.closest("[data-ins]");
+  if(ins){const ed=$("df-b");if(!ed.contains(getSelection().anchorNode)){ed.focus();const r=document.createRange();r.selectNodeContents(ed);r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r)}document.execCommand("insertText",false,ins.dataset.ins);return}
+  const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;
+  if(a==="lnkok"||a==="lnkno"){const u=a==="lnkok"?cleanUrl($("lnk-u").value):"";const box=b.closest(".row");const ed=box.parentElement.querySelector(".ed");box.remove();
+    if(u&&ui.linkRange){ed.focus();const s=getSelection();s.removeAllRanges();s.addRange(ui.linkRange);document.execCommand("createLink",false,u)}else if(a==="lnkok")toast("That address doesn't look right.");ui.linkRange=null;return}
+  if(a==="goprog"){cur=b.dataset.id;reset();location.hash="programs";return}
+  if(a==="open"){cur=b.dataset.id;reset();render();return}
+  if(a==="cancel"){reset();render();return}
+  const list=s=>s==="admin"?data.admin:(data.programs.find(p=>p.id===s)||{}).drafts||[];
+  const dr=b.dataset.s?list(b.dataset.s).find(x=>x.id===b.dataset.id):null;
+  if(dr){const key=keyFor(dr.id,b.dataset.s);
+    if(a==="copysubj")return copyText(fillText(dr.subject,key),"Subject");
+    if(a==="copybody")return copyRich(fillHtml(dr.html,key),"Message")}
+  if(a==="copyfaq"){const f=data.faqs.find(x=>x.id===b.dataset.id);if(f)copyRich(sanitize(f.html),"Answer");return}
+  if(a==="copyjson")return copyText(JSON.stringify(data,null,2),"Backup text");
+  if(a==="export")return doExport();
+  if(readOnly)return;
+  if(a==="color"){$("st-c").value=b.dataset.v;document.querySelectorAll(".sw").forEach(s=>s.setAttribute("aria-pressed",s===b));document.documentElement.style.setProperty("--c",b.dataset.v);document.documentElement.style.setProperty("--headink",lum(b.dataset.v)>.4?"#16161a":"#fff");return}
+  if(a==="import")return doImport();
+  if(a==="addrow"){const tpl=document.createElement("div");tpl.innerHTML=`<div class="drow"><input name="dl" placeholder="e.g. Orientation" aria-label="Date name"><input name="dd" type="date" aria-label="Date"><button type="button" class="sq ghost" data-act="rmrow" aria-label="Remove this date">×</button></div>`;$("drows").appendChild(tpl.firstChild);$("drows").lastChild.querySelector("input").focus();return}
+  if(a==="rmrow"){b.closest(".drow").remove();return}
+  if(a==="shift"){const n=parseInt($("sh-n").value)||0,u=$("sh-u").value;if(!n)return;
+    document.querySelectorAll('#drows input[name=dd]').forEach(inp=>{const d=pd(inp.value);if(!d)return;
+      if(u==="m"){const day=d.getDate();d.setDate(1);d.setMonth(d.getMonth()+n);d.setDate(Math.min(day,new Date(d.getFullYear(),d.getMonth()+1,0).getDate()))}else d.setDate(d.getDate()+n*(u==="w"?7:1));inp.value=iso(d)});
+    toast("Dates moved. Check them, then Save intake.");return}
+  if(a==="ask"){ui.confirm=b.dataset.w;if(b.dataset.open)ui.open=b.dataset.open;render();return}
+  if(a==="newdraft"){reset();ui.edit="newdraft";render();$("df-t")?.focus();return}
+  if(a==="editdraft"){reset();ui.edit=b.dataset.id;render();$("df-t")?.focus();return}
+  if(a==="dupdraft"&&dr){list(b.dataset.s).push(Object.assign({},dr,{id:uid(),title:(dr.title||"Draft")+" (copy)"}));reset();save();render();return}
+  if(a==="deldraft"){const l=list(b.dataset.s);const k=l.findIndex(x=>x.id===b.dataset.id);if(k>-1)l.splice(k,1);reset();save();render();return}
+  if(a==="newfaq"){reset();ui.edit="newfaq";render();$("fq-q")?.focus();return}
+  if(a==="editfaq"){reset();ui.edit=b.dataset.id;render();$("fq-q")?.focus();return}
+  if(a==="delfaq"){data.faqs=data.faqs.filter(x=>x.id!==b.dataset.id);reset();save();render();return}
+  const p=P();if(!p)return;
+  if(a==="rename"){reset();ui.rename=true;render();return}
+  if(a==="delprog"){data.programs=data.programs.filter(x=>x.id!==p.id);cur=data.programs[0]?.id||null;reset();save(true);render();toast("Program deleted");return}
+  if(a==="newintake"){reset();ui.edit="newintake";render();$("if-n")?.focus();return}
+  if(a==="editintake"){reset();ui.edit=b.dataset.id;render();$("if-n")?.focus();return}
+  if(a==="dupintake"){const i=p.intakes.find(x=>x.id===b.dataset.id);if(!i)return;const c=JSON.parse(JSON.stringify(i));c.id=uid();c.name=i.name+" (new term)";c.enrolled="";p.intakes.push(c);reset();ui.edit=c.id;save();render();$("if-n")?.focus();toast("Copied. Rename it and move the dates.");return}
+  if(a==="delintake"){p.intakes=p.intakes.filter(x=>x.id!==b.dataset.id);reset();save();render();return}
+  if(a==="enr"){const i=p.intakes.find(x=>x.id===b.dataset.id);if(!i)return;i.enrolled=String(Math.max(0,(+i.enrolled||0)+(+b.dataset.d)));save();render();return}
+  if(a==="addlink"){reset();ui.edit="addlink";render();$("lf-l")?.focus();return}
+  if(a==="editlink"){reset();ui.edit="link"+b.dataset.k;render();$("lf-l")?.focus();return}
+  if(a==="dellink"){p.links.splice(+b.dataset.k,1);reset();save();render();return}
+});
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.id==="lnk-u"){e.preventDefault();e.target.parentElement.querySelector("[data-act=lnkok]").click()}});
+document.addEventListener("submit",e=>{
+  const f=e.target.closest("[data-form]");if(!f)return;e.preventDefault();if(readOnly)return;
+  const v=n=>(f.elements[n]&&f.elements[n].value||"").trim(),k=f.dataset.form;
+  if(k==="settings"){data.settings.name=v("name");data.settings.tagline=v("tagline");data.settings.color=$("st-c").value;data.dateStyle=v("dateStyle")||"long";save(true);applyTheme();render();toast("Settings saved");return}
+  if(k==="addprog"){const n=v("name");if(!n)return;if(data.programs.some(p=>p.name.toLowerCase()===n.toLowerCase())){toast("That program already exists.");return}
+    const p={id:uid(),name:n,links:[],drafts:[],intakes:[]};data.programs.push(p);normalize(data);cur=p.id;reset();save(true);render();return}
+  if(k==="draft"){const body={title:v("title"),to:v("to"),subject:v("subject"),html:sanitize($("df-b").innerHTML)};
+    const l=f.dataset.s==="admin"?data.admin:data.programs.find(p=>p.id===f.dataset.s).drafts;
+    const id=f.dataset.id;if(id){const x=l.find(x=>x.id===id);if(x){Object.assign(x,body);delete x.body}}else l.push(Object.assign({id:uid()},body));
+    reset();save(true);render();toast("Draft saved");return}
+  if(k==="faq"){const body={q:v("q"),cat:v("cat")||"general",html:sanitize($("fq-a").innerHTML)};const id=f.dataset.id;
+    if(id){const x=data.faqs.find(x=>x.id===id);if(x){Object.assign(x,body);delete x.answer}}else data.faqs.unshift(Object.assign({id:uid()},body));
+    reset();ui.open=id||data.faqs[0].id;save(true);render();toast("FAQ saved");return}
+  const p=P();if(!p)return;
+  if(k==="rename"){const n=v("name");if(n)p.name=n;normalize(data)}
+  if(k==="link"){const url=cleanUrl(v("url"));if(!url){toast("That link doesn't look right. Paste the full SharePoint link.");return}
+    const l={label:v("label")||"Untitled file",url};if(f.dataset.k==="")p.links.push(l);else p.links[+f.dataset.k]=l}
+  if(k==="intake"){const ls=[...f.querySelectorAll("input[name=dl]")],ds=[...f.querySelectorAll("input[name=dd]")];
+    const dates=ls.map((l,j)=>({label:l.value.trim(),date:ds[j].value})).filter(d=>d.label||d.date);
+    const body={name:v("name")||"Intake",target:v("target"),enrolled:v("enrolled"),dates};
+    if(f.dataset.id)Object.assign(p.intakes.find(x=>x.id===f.dataset.id)||{},body);else p.intakes.push(Object.assign({id:uid()},body))}
+  reset();save(true);render();toast("Saved");
+});
+if(window.claude&&typeof window.claude.use==="function"){window.claude.use("db").then(db=>db?startDb(db):startLocal()).catch(startLocal)}else startLocal();
+}
+</script>
+</body>
+</html>
