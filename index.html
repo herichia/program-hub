@@ -242,9 +242,13 @@ function startLocal(){
   route();
 }
 /* ---------- accounts ---------- */
+const UDOM=()=>(FIREBASE_CONFIG.authDomain||"users.invalid").toLowerCase();
+const toLogin=v=>{v=v.trim();if(v.includes("@"))return{email:v,isUser:false};const u=v.toLowerCase();return{email:u+"@"+UDOM(),isUser:true,u}};
+const isUserAcct=e=>(e||"").toLowerCase().endsWith("@"+UDOM());
+const shown=e=>isUserAcct(e)?e.slice(0,e.lastIndexOf("@")):e;
 const isGuest=()=>{try{return localStorage.getItem("ph-guest")==="1"}catch(e){return false}};
 function renderAcct(){const a=$("acct");if(!a)return;
-  if(mode==="cloud"&&user)a.innerHTML=`<span>${esc(user.email||"Signed in")}</span><button type="button" data-act="signout">Sign out</button>`;
+  if(mode==="cloud"&&user)a.innerHTML=`<span>${esc(shown(user.email)||"Signed in")}</span><button type="button" data-act="signout">Sign out</button>`;
   else if(FB_ON&&mode==="local")a.innerHTML=`<span>Not signed in</span><button type="button" data-act="signin">Sign in</button>`;
   else a.innerHTML=""}
 function startCloud(u){
@@ -265,9 +269,10 @@ const AUTH_ERR={"auth/invalid-credential":"That email or password isn't right.",
 function showAuth(){mode="auth";data=normalize({});renderAcct();$("nav").innerHTML="";applyTheme();
   const tab=ui.authTab||"in";
   const pw=(id,ac)=>`<div style="position:relative"><input id="${id}" name="${id}" type="password" autocomplete="${ac}" required minlength="${tab==="up"?8:1}" style="padding-right:76px"><button type="button" class="ghost" data-act="showpw" data-for="${id}" style="position:absolute;right:2px;top:2px;min-height:40px;font-size:14px">Show</button></div>`;
-  $("view").innerHTML=`<div class="auth"><h2>${tab==="reset"?"Reset your password":"Welcome"}</h2><p class="mut" style="margin:0">${tab==="reset"?"Enter your email and we'll send you a link to set a new password.":"Sign in to see your hub on any computer or phone."}</p>
+  $("view").innerHTML=`<div class="auth"><h2>${tab==="reset"?"Reset your password":"Welcome"}</h2><p class="mut" style="margin:0">${tab==="reset"?"Enter the email you signed up with and we'll send you a link to set a new password. If you signed up with a username, ask whoever runs this hub to reset your account.":"Sign in to see your hub on any computer or phone."}</p>
 ${tab==="reset"?"":`<div class="seg" role="group" aria-label="Sign in or create an account"><button type="button" data-act="authtab" data-v="in" aria-pressed="${tab==="in"}">Sign in</button><button type="button" data-act="authtab" data-v="up" aria-pressed="${tab==="up"}">Create account</button></div>`}
-<form data-form="auth" data-tab="${tab}" novalidate><label for="au-e">Email</label><input id="au-e" name="email" type="email" autocomplete="email" required value="${esc(ui.authEmail||"")}">
+<form data-form="auth" data-tab="${tab}" novalidate><label for="au-e">${tab==="reset"?"Email":"Username or email"}</label><input id="au-e" name="email" type="${tab==="reset"?"email":"text"}" autocomplete="username" autocapitalize="none" spellcheck="false" required value="${esc(ui.authEmail||"")}">
+${tab==="up"?`<p class="hint" style="margin-top:4px">Use an email if you want to be able to reset a forgotten password yourself. A username works too (letters, numbers, dots, dashes or underscores, 3 to 30 characters), but a forgotten password can't be reset by email.</p>`:""}
 ${tab==="reset"?"":`<label for="au-p">Password${tab==="up"?" (at least 8 characters)":""}</label>${pw("au-p",tab==="up"?"new-password":"current-password")}`}
 ${tab==="up"?`<label for="au-p2">Type the password again</label>${pw("au-p2","new-password")}`:""}
 <p class="err" id="au-err" role="alert"></p>${ui.authMsg?`<p class="okmsg">${esc(ui.authMsg)}</p>`:""}
@@ -276,8 +281,11 @@ ${tab==="up"?`<label for="au-p2">Type the password again</label>${pw("au-p2","ne
 <div class="or">or</div><button style="width:100%" data-act="guest">Use without an account</button><p class="hint" style="text-align:center">Without an account, your hub is saved in this browser only.</p></div>`;
   ui.authMsg="";}
 async function doAuth(f){
-  const tab=f.dataset.tab,email=f.elements.email.value.trim(),err=$("au-err");ui.authEmail=email;err.textContent="";
-  if(!email){err.textContent="Enter your email.";return}
+  const tab=f.dataset.tab,raw=f.elements.email.value.trim(),err=$("au-err");ui.authEmail=raw;err.textContent="";
+  if(!raw){err.textContent=tab==="reset"?"Enter your email.":"Enter your username or email.";return}
+  const L=toLogin(raw),email=L.email;
+  if(tab==="reset"&&L.isUser){err.textContent="Password reset links only work for accounts made with an email. If you signed up with a username, ask whoever runs this hub to reset your account.";return}
+  if(L.isUser&&!/^[a-z0-9._-]{3,30}$/.test(L.u)){err.textContent="Usernames can use letters, numbers, dots, dashes or underscores, 3 to 30 characters, no spaces.";return}
   const btn=f.querySelector("button.pri");btn.disabled=true;
   try{
     if(tab==="reset"){await auth.sendPasswordResetEmail(email);ui.authTab="in";ui.authMsg="If there's an account for that email, a reset link is on its way. Check your junk folder too.";showAuth();return}
@@ -287,7 +295,9 @@ async function doAuth(f){
       await auth.createUserWithEmailAndPassword(email,pw)}
     else await auth.signInWithEmailAndPassword(email,pw);
     ui.authTab="in";
-  }catch(e){err.textContent=AUTH_ERR[e.code]||("Something went wrong ("+(e.code||e.message)+"). Try again.");btn.disabled=false}
+  }catch(e){if(L.isUser&&e.code==="auth/email-already-in-use"){err.textContent="That username is taken. Try another one.";btn.disabled=false;return}
+    if(L.isUser&&/invalid-credential|wrong-password|user-not-found|invalid-login/.test(e.code||"")){err.textContent="That username or password isn't right.";btn.disabled=false;return}
+    err.textContent=AUTH_ERR[e.code]||("Something went wrong ("+(e.code||e.message)+"). Try again.");btn.disabled=false}
 }
 async function signOut(){
   if(mode==="cloud"&&saveT){clearTimeout(saveT);saveT=null;try{await doc.set(JSON.parse(JSON.stringify(data)))}catch(e){}}
@@ -535,7 +545,10 @@ function faqForm(f){
 function vBackup(){
   const c=data.settings.color||"#800000";
   return`<h2>${esc(nm("backup"))}</h2>
-${mode==="cloud"&&user?`<section class="box" style="margin-top:12px;border:0;padding:0"><h3>Your account</h3><p>Signed in as <b>${esc(user.email)}</b>. Your hub is saved to your account and stays in sync on every device you sign in on.</p><div class="row"><button data-act="pwreset">Email me a password reset link</button><button class="ghost" data-act="signout">Sign out</button></div></section>`:""}
+${mode==="cloud"&&user?`<section class="box" style="margin-top:12px;border:0;padding:0"><h3>Your account</h3><p>Signed in as <b>${esc(shown(user.email))}</b>. Your hub is saved to your account and stays in sync on every device you sign in on.</p>
+<form data-form="chpw" class="form" style="max-width:520px"><b>Change your password</b><label for="cp-o">Current password</label><input id="cp-o" name="old" type="password" autocomplete="current-password" required><label for="cp-n">New password (at least 8 characters)</label><input id="cp-n" name="nw" type="password" autocomplete="new-password" required minlength="8"><p class="err" id="cp-err" style="color:var(--bad);font-size:15px;margin:8px 0 0"></p><div class="row" style="margin-top:10px"><button class="pri">Change password</button></div></form>
+<div class="row">${isUserAcct(user.email)?"":`<button data-act="pwreset">Email me a password reset link</button>`}<button class="ghost" data-act="signout">Sign out</button></div>
+${isUserAcct(user.email)?`<p class="hint">You signed in with a username, so keep your password somewhere safe. It can't be reset by email.</p>`:""}</section>`:""}
 <section class="box" style="${mode==="cloud"?"":"margin-top:12px;border:0;padding:0"}"><h3>Make it yours</h3>
 <form data-form="settings"><div class="grid2"><div><label for="st-n">Hub name</label><input id="st-n" name="name" value="${esc(data.settings.name||"")}" placeholder="Program Hub"></div><div><label for="st-t">Line under the name</label><input id="st-t" name="tagline" value="${esc(data.settings.tagline||"")}" placeholder="Intakes, enrolments, spreadsheets, email drafts and FAQs for every program."></div></div>
 <label>Colour</label><div class="swatches">${THEMES.map(([n,v])=>`<button type="button" class="sw" style="background:${v}" data-act="color" data-v="${v}" aria-label="${n}" title="${n}" aria-pressed="${v.toLowerCase()===c.toLowerCase()}"></button>`).join("")}<span class="row"><input type="color" id="st-c" value="${esc(c)}" aria-label="Pick any colour"><span class="small mut">or pick any colour</span></span></div>
@@ -685,6 +698,11 @@ document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.id==="lnk-u
 document.addEventListener("submit",e=>{
   const f=e.target.closest("[data-form]");if(!f)return;e.preventDefault();
   if(f.dataset.form==="auth"){doAuth(f);return}
+  if(f.dataset.form==="chpw"){const o=f.elements.old.value,n=f.elements.nw.value,er=$("cp-err");er.textContent="";
+    if(n.length<8){er.textContent="Use at least 8 characters for the new password.";return}
+    const u=auth.currentUser;if(!u)return;
+    u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email,o)).then(()=>u.updatePassword(n)).then(()=>{f.reset();toast("Password changed")})
+      .catch(e=>{er.textContent=/invalid-credential|wrong-password|invalid-login/.test(e.code||"")?"Your current password isn't right.":e.code==="auth/too-many-requests"?"Too many tries. Wait a few minutes.":"Couldn't change it ("+(e.code||"error")+")."});return}
   if(readOnly)return;
   const v=n=>(f.elements[n]&&f.elements[n].value||"").trim(),k=f.dataset.form;
   if(k==="settings"){data.settings.name=v("name");data.settings.tagline=v("tagline");data.settings.color=$("st-c").value;data.settings.iconText=v("iconText").toUpperCase();data.dateStyle=v("dateStyle")||"long";save(true);applyTheme();render();toast("Settings saved");return}
