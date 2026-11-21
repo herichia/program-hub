@@ -99,6 +99,18 @@ tr.click{cursor:pointer}tr.click:hover td{background:var(--panel)}
 .fillrow select{flex:1 1 240px;width:auto}
 .subj{font-size:15px;margin:0 0 8px;overflow-wrap:anywhere}
 .body{font-size:15px;background:var(--panel);border-radius:8px;padding:10px 14px;max-height:260px;overflow:auto;margin:0 0 10px;overflow-wrap:anywhere}
+.body table,.ed table{border-collapse:collapse;margin:0 0 .8em;max-width:100%}
+.body td,.body th,.ed td,.ed th{border:1px solid color-mix(in srgb,var(--ink) 30%,transparent);padding:4px 8px;text-align:left;vertical-align:top;font-size:15px;min-width:40px}
+.body th,.ed th{font-weight:700;background:color-mix(in srgb,var(--ink) 6%,transparent)}
+.body{overflow-x:auto}
+details.draft{padding:0}
+details.draft>summary{list-style:none;cursor:pointer;display:flex;gap:12px;align-items:center;padding:12px 16px;min-height:56px}
+details.draft>summary::-webkit-details-marker{display:none}
+details.draft>summary::after{content:"+";font-size:22px;color:var(--acc);flex:none;margin-left:auto}
+details.draft[open]>summary::after{content:"−"}
+details.draft>summary .st{display:block;font-weight:700;font-size:17px}
+details.draft>summary .ss{display:block;font-size:15px;color:var(--mut);overflow-wrap:anywhere}
+details.draft .in{padding:0 16px 14px}
 .body p,.ed p{margin:0 0 .6em}.body ul,.body ol,.ed ul,.ed ol{margin:0 0 .6em;padding-left:1.4em}
 mark{background:var(--fill);color:inherit;border-radius:3px;padding:0 2px}
 mark.miss{background:none;color:var(--bad);font-weight:600;outline:1.5px dashed var(--bad)}
@@ -178,7 +190,7 @@ const DEF_DATES=["Start date","End date","Orientation","Application deadline","F
 const THEMES=[["Maroon","#800000"],["Navy","#1f3a68"],["Forest","#2c5e3f"],["Teal","#0f6b6b"],["Plum","#5b2a6e"],["Slate","#3d4655"],["Burnt orange","#a8471a"],["Rose","#9c2f5a"]];
 let data={programs:[],admin:[],faqs:[],notes:[],dateStyle:"long",settings:{tabs:["overview","programs","admin","faqs","notes","backup"],hidden:[],tabNames:{},progOrder:["intakes","files","drafts"],ov:{range:60,prog:"",label:"",limit:25,notes:true}}};
 let mode="loading",readOnly=false,view="overview",cur=null,q="",fq="",fcat="",range=60;
-let ui={};const fill={};
+let ui={};const fill={};const openDrafts=new Set();
 const reset=()=>{ui={}};
 
 /* ---------- dates ---------- */
@@ -194,7 +206,7 @@ const away=n=>n===0?"today":n===1?"tomorrow":n<0?(-n)+" days ago":"in "+n+" days
 const startOf=i=>{const ds=(i.dates||[]).filter(d=>pd(d.date));const s=ds.find(d=>/start/i.test(d.label));return s?s.date:(ds.map(d=>d.date).sort()[0]||"")};
 
 /* ---------- rich text ---------- */
-const OK_TAGS={B:"b",STRONG:"b",I:"i",EM:"i",U:"u",P:"p",DIV:"p",BR:"br",UL:"ul",OL:"ol",LI:"li",A:"a",H1:"b",H2:"b",H3:"b",H4:"b"};
+const OK_TAGS={B:"b",STRONG:"b",I:"i",EM:"i",U:"u",P:"p",DIV:"p",BR:"br",UL:"ul",OL:"ol",LI:"li",A:"a",H1:"b",H2:"b",H3:"b",H4:"b",TABLE:"table",THEAD:"thead",TBODY:"tbody",TFOOT:"tbody",TR:"tr",TD:"td",TH:"th"};
 function sanitize(html){
   const doc=new DOMParser().parseFromString("<body>"+(html||"")+"</body>","text/html");const out=document.createElement("div");
   (function walk(src,dst){src.childNodes.forEach(n=>{
@@ -205,12 +217,13 @@ function sanitize(html){
       parts.forEach(p=>{const e=document.createElement(p);wrap.appendChild(e);wrap=e});walk(n,wrap);return}
     if(!t){walk(n,dst);return}
     const e=document.createElement(t);
+    if(t==="td"||t==="th"){["colspan","rowspan"].forEach(a=>{const v=n.getAttribute(a);if(/^\d{1,2}$/.test(v||""))e.setAttribute(a,v)})}
     if(t==="a"){const h=n.getAttribute("href")||"";if(/^(https?:|mailto:)/i.test(h)){e.setAttribute("href",h)}else{walk(n,dst);return}}
     dst.appendChild(e);if(t!=="br")walk(n,e)})})(doc.body,out);
   return out.innerHTML.replace(/<p><\/p>/g,"<p><br></p>");
 }
 const textToHtml=t=>String(t||"").split(/\n{2,}/).map(p=>"<p>"+esc(p).replace(/\n/g,"<br>")+"</p>").join("");
-function htmlToText(h){const d=document.createElement("div");d.innerHTML=String(h||"").replace(/<br\s*\/?>/gi,"\n").replace(/<\/(p|div|li|h\d)>/gi,"$&\n").replace(/<li>/gi,"<li>• ");return d.textContent.replace(/\n{3,}/g,"\n\n").trim()}
+function htmlToText(h){const d=document.createElement("div");d.innerHTML=String(h||"").replace(/<\/t[dh]>/gi,"\t$&").replace(/<\/tr>/gi,"$&\n").replace(/<br\s*\/?>/gi,"\n").replace(/<\/(p|div|li|h\d)>/gi,"$&\n").replace(/<li>/gi,"<li>• ");return d.textContent.replace(/\n{3,}/g,"\n\n").trim()}
 
 /* ---------- storage ---------- */
 const LS="programhub-v2";const FB_ON=!!(FIREBASE_CONFIG&&FIREBASE_CONFIG.apiKey);let auth=null,fs=null,user=null,unsub=null;let doc=null,writing=Promise.resolve(),saveT=null;
@@ -354,7 +367,9 @@ async function copyText(text,what){
 }
 function selCopy(el){try{const r=document.createRange();r.selectNodeContents(el);const s=getSelection();s.removeAllRanges();s.addRange(r);const ok=document.execCommand("copy");s.removeAllRanges();return ok}catch(e){return false}}
 async function copyRich(html,what){
-  const full='<div style="font-family:Calibri,Arial,sans-serif;font-size:11pt">'+html.replace(/<p>/g,'<p style="margin:0 0 10px">')+"</div>";
+  const full='<div style="font-family:Calibri,Arial,sans-serif;font-size:11pt">'+html.replace(/<p>/g,'<p style="margin:0 0 10px">')
+    .replace(/<table>/g,'<table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;border:1px solid #999;margin:0 0 10px">')
+    .replace(/<td(\s|>)/g,'<td style="border:1px solid #999;padding:4px 8px;vertical-align:top"$1').replace(/<th(\s|>)/g,'<th style="border:1px solid #999;padding:4px 8px;vertical-align:top;background:#f2f2f2;text-align:left"$1')+"</div>";
   try{if(window.ClipboardItem&&navigator.clipboard.write){await navigator.clipboard.write([new ClipboardItem({"text/html":new Blob([full],{type:"text/html"}),"text/plain":new Blob([htmlToText(html)],{type:"text/plain"})})]);toast(what+" copied with formatting");return}}catch(e){}
   const box=$("clipbox");box.innerHTML=full;if(selCopy(box)){toast(what+" copied with formatting");return}
   copyText(htmlToText(html),what);
@@ -472,13 +487,13 @@ function draftList(list,scope){
     if(ui.edit===d.id)return draftForm(d,scope);
     const key=keyFor(d.id,scope);const sel=opts.join("").replace(`value="${key}"`,`value="${key}" selected`);
     const bodyPrev=fillHtml(d.html,key,true);const miss=(bodyPrev.match(/class="miss"/g)||[]).length+(fillText(d.subject,key,true).match(/class="miss"/g)||[]).length;
-    return`<article class="draft"><h4>${esc(d.title||"Untitled draft")}</h4>
+    return`<details class="draft" data-did="${d.id}"${openDrafts.has(d.id)?" open":""}><summary><span><span class="st">${esc(d.title||"Untitled draft")}</span><span class="ss">${d.subject?fillText(d.subject,key):"(no subject)"}</span></span></summary><div class="in">
 <div class="fillrow"><label for="f-${d.id}" style="margin:0">Fill dates for</label><select id="f-${d.id}" data-fill="${d.id}">${sel}</select></div>
 <p class="subj">${d.to?`<span class="mut">To:</span> ${esc(d.to)}<br>`:""}<span class="mut">Subject:</span> ${fillText(d.subject,key,true)||'<span class="mut">(none)</span>'}</p>
 <div class="body">${bodyPrev||'<span class="mut">(empty)</span>'}</div>
 ${miss?`<p class="hint" style="margin:-4px 0 10px;color:var(--bad)">${miss} placeholder${miss>1?"s":""} still to fill in by hand (dashed in red).</p>`:""}
-<div class="row"><button class="pri" data-act="copybody" data-id="${d.id}" data-s="${scope}">Copy message</button><button data-act="copysubj" data-id="${d.id}" data-s="${scope}">Copy subject</button><a class="btn" href="${esc(mailto(d.to,fillText(d.subject,key),htmlToText(fillHtml(d.html,key))))}" target="_blank" rel="noopener" title="Opens a new email. Formatting isn't carried over this way.">Open in Outlook</a>${readOnly?"":`<button class="ghost" data-act="editdraft" data-id="${d.id}">Edit</button><button class="ghost" data-act="dupdraft" data-id="${d.id}" data-s="${scope}">Duplicate</button>${ui.confirm==="d"+d.id?`<button class="danger" data-act="deldraft" data-id="${d.id}" data-s="${scope}">Delete</button>`:`<button class="ghost" data-act="ask" data-w="d${d.id}">Delete</button>`}`}</div></article>`}).join("")+`</div>`;
-  return h+`<p class="hint">Copy message keeps bold, lists and links when you paste into Outlook. Open in Outlook starts a new email but sends plain text only, so paste the copied message over it if you need the formatting.</p>`;
+<div class="row"><button class="pri" data-act="copybody" data-id="${d.id}" data-s="${scope}">Copy message</button><button data-act="copysubj" data-id="${d.id}" data-s="${scope}">Copy subject</button><a class="btn" href="${esc(mailto(d.to,fillText(d.subject,key),htmlToText(fillHtml(d.html,key))))}" target="_blank" rel="noopener" title="Opens a new email. Formatting isn't carried over this way.">Open in Outlook</a>${readOnly?"":`<button class="ghost" data-act="editdraft" data-id="${d.id}">Edit</button><button class="ghost" data-act="dupdraft" data-id="${d.id}" data-s="${scope}">Duplicate</button>${ui.confirm==="d"+d.id?`<button class="danger" data-act="deldraft" data-id="${d.id}" data-s="${scope}">Delete</button>`:`<button class="ghost" data-act="ask" data-w="d${d.id}">Delete</button>`}`}</div></div></details>`}).join("")+`</div>`;
+  return h+`<p class="hint">Click a draft to open it. Copy message keeps bold, lists, tables and links when you paste into Outlook. Open in Outlook starts a new email but sends plain text only, so paste the copied message over it if you need the formatting.</p>`;
 }
 function keyFor(id,scope){let key=fill[id];if(key===undefined||(key&&!findI(key))){if(scope==="admin")return"";const p=data.programs.find(x=>x.id===scope);const n=p&&nextIntake(p);key=n?p.id+"|"+n.id:""}return key}
 
@@ -725,6 +740,7 @@ document.addEventListener("click",e=>{
   if(a==="lkmv"){const k=+b.dataset.k,j=k+(+b.dataset.d);if(j<0||j>=p.links.length)return;[p.links[k],p.links[j]]=[p.links[j],p.links[k]];save();render();return}
   if(a==="dellink"){p.links.splice(+b.dataset.k,1);reset();save();render();return}
 });
+document.addEventListener("toggle",e=>{const t=e.target;if(t.matches&&t.matches("details.draft[data-did]")){if(t.open)openDrafts.add(t.dataset.did);else openDrafts.delete(t.dataset.did)}},true);
 document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.id==="lnk-u"){e.preventDefault();e.target.parentElement.querySelector("[data-act=lnkok]").click()}});
 document.addEventListener("submit",e=>{
   const f=e.target.closest("[data-form]");if(!f)return;e.preventDefault();
@@ -742,7 +758,7 @@ document.addEventListener("submit",e=>{
     const p={id:uid(),name:n,links:[],drafts:[],intakes:[]};data.programs.push(p);normalize(data);cur=p.id;reset();save(true);render();return}
   if(k==="draft"){const body={title:v("title"),to:v("to"),subject:v("subject"),html:sanitize($("df-b").innerHTML)};
     const l=f.dataset.s==="admin"?data.admin:data.programs.find(p=>p.id===f.dataset.s).drafts;
-    const id=f.dataset.id;if(id){const x=l.find(x=>x.id===id);if(x){Object.assign(x,body);delete x.body}}else l.push(Object.assign({id:uid()},body));
+    const id=f.dataset.id;if(id){const x=l.find(x=>x.id===id);if(x){Object.assign(x,body);delete x.body}openDrafts.add(id)}else{const nid=uid();l.push(Object.assign({id:nid},body));openDrafts.add(nid)}
     reset();save(true);render();toast("Draft saved");return}
   if(k==="note"){const body={text:f.elements.text.value.trim(),date:v("date"),prog:v("prog")};if(!body.text)return;const id=f.dataset.id;
     if(id)Object.assign(data.notes.find(x=>x.id===id)||{},body);else data.notes.push(Object.assign({id:uid(),created:Date.now(),done:false,pin:false},body));
