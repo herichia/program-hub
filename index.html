@@ -88,7 +88,9 @@ tr.click{cursor:pointer}tr.click:hover td{background:var(--panel)}
 .file{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1.5px solid var(--line);border-radius:12px;padding:6px 8px 6px 14px}
 .file a.name{flex:1 1 220px;font-weight:600;color:var(--ink);text-decoration:none;display:flex;gap:10px;align-items:center;min-height:40px}
 .file a.name:hover{color:var(--acc);text-decoration:underline}
-.xl{flex:none;width:28px;height:28px;border-radius:6px;background:#1d6f42;color:#fff;font-size:13px;font-weight:800;display:grid;place-items:center}
+.xl{flex:none;width:32px;height:32px;border-radius:8px;background:#1d6f42;color:#fff;font-size:13px;font-weight:800;display:grid;place-items:center;letter-spacing:-.02em;line-height:1}
+.xl svg{width:18px;height:18px}
+.secname{display:inline-flex;gap:6px;align-items:center;flex:1 1 260px}.secname input{max-width:340px}
 .host{color:var(--mut);font-size:13px;font-weight:400;display:block;overflow-wrap:anywhere}
 .drafts{display:grid;gap:14px}
 .draft{border:1.5px solid var(--line);border-radius:12px;padding:14px 16px}
@@ -214,6 +216,7 @@ function htmlToText(h){const d=document.createElement("div");d.innerHTML=String(
 const LS="programhub-v2";const FB_ON=!!(FIREBASE_CONFIG&&FIREBASE_CONFIG.apiKey);let auth=null,fs=null,user=null,unsub=null;let doc=null,writing=Promise.resolve(),saveT=null;
 function normalize(d){d=d&&typeof d==="object"?d:{};d.programs=Array.isArray(d.programs)?d.programs:[];d.admin=Array.isArray(d.admin)?d.admin:[];d.faqs=Array.isArray(d.faqs)?d.faqs:[];d.dateStyle=d.dateStyle||"long";d.settings=d.settings||{};d.notes=Array.isArray(d.notes)?d.notes:[];
   const ord=Array.isArray(d.settings.tabs)?d.settings.tabs.filter(v=>VIEWS.includes(v)):[];VIEWS.forEach(v=>{if(ord.includes(v))return;const b=ord.indexOf("backup");if(v!=="backup"&&b>-1)ord.splice(b,0,v);else ord.push(v)});d.settings.tabs=ord;
+  d.settings.secNames=d.settings.secNames&&typeof d.settings.secNames==="object"?d.settings.secNames:{};
   d.settings.tabNames=d.settings.tabNames&&typeof d.settings.tabNames==="object"?d.settings.tabNames:{};
   {const PO=["intakes","files","drafts"];const po=Array.isArray(d.settings.progOrder)?d.settings.progOrder.filter(x=>PO.includes(x)):[];PO.forEach(x=>{if(!po.includes(x))po.push(x)});d.settings.progOrder=po}
   d.settings.hidden=Array.isArray(d.settings.hidden)?d.settings.hidden.filter(v=>v!=="backup"):[];
@@ -432,17 +435,20 @@ function vPrograms(){
   const ed=!readOnly;
   h+=ui.rename?`<form class="inl" data-form="rename"><input name="name" value="${esc(p.name)}" aria-label="Program name" required><button class="pri">Save</button><button type="button" class="ghost" data-act="cancel">Cancel</button></form>`:
     `<h3 style="margin:0"><span style="font-size:clamp(24px,3vw,32px);line-height:1.1">${esc(p.name)}</span>${ed?`<span class="row"><button class="ghost" data-act="rename">Rename</button>${ui.confirm==="prog"?`<button class="danger" data-act="delprog">Delete program and everything in it</button><button class="ghost" data-act="cancel">Keep</button>`:`<button class="ghost" data-act="ask" data-w="prog">Delete</button>`}</span>`:""}</h3>`;
+  const SN={intakes:"Intakes and dates",files:"Links and files",drafts:"Email drafts"};
+  const secTitle=k=>{const custom=(data.settings.secNames||{})[k];if(ui.secEdit===k&&ed)return`<form class="secname" data-form="secname" data-v="${k}"><input name="n" value="${esc(custom||"")}" placeholder="${SN[k]}" aria-label="Section name"><button class="pri">Save</button><button type="button" class="ghost" data-act="cancel">Cancel</button></form>`;
+    const t=custom||SN[k];return`<span>${esc(t)}${k==="drafts"&&!custom?" for "+esc(p.name):""}${ed?`<button type="button" class="ghost" data-act="secname" data-v="${k}" style="min-height:36px;font-size:14px;font-weight:600;margin-left:4px" title="Rename this section">Rename</button>`:""}</span>`};
   const mv=k=>ed?`<span class="row" style="gap:0">${ui.edit===`newintake`&&k==="intakes"||ui.edit==="addlink"&&k==="files"||ui.edit==="newdraft"&&k==="drafts"?"":`${k==="intakes"?`<button data-act="newintake">Add intake</button>`:k==="files"?`<button data-act="addlink">Add link</button>`:`<button data-act="newdraft">New draft</button>`}`}<button class="sq ghost" data-act="secmv" data-v="${k}" data-d="-1" aria-label="Move this section up" title="Move section up">↑</button><button class="sq ghost" data-act="secmv" data-v="${k}" data-d="1" aria-label="Move this section down" title="Move section down">↓</button></span>`:"";
   const S={};
-  S.intakes=`<section class="box"><h3>Intakes and dates${mv("intakes")}</h3>`+(ui.edit==="newintake"?intakeForm({name:"",target:"",enrolled:"",dates:DEF_DATES.map(l=>({label:l,date:""}))},""):"");
+  S.intakes=`<section class="box"><h3>${secTitle("intakes")}${mv("intakes")}</h3>`+(ui.edit==="newintake"?intakeForm({name:"",target:"",enrolled:"",dates:DEF_DATES.map(l=>({label:l,date:""}))},""):"");
   const ins=p.intakes.slice().sort((a,b)=>(startOf(a)||"9").localeCompare(startOf(b)||"9"));
   S.intakes+=ins.length?`<div class="cards">`+ins.map(i=>ui.edit===i.id?`<div style="grid-column:1/-1">${intakeForm(i,i.id)}</div>`:`<div class="card"><h4><span>${esc(i.name)}</span>${status(i)}</h4>
 <div class="row" style="margin:8px 0">${ed?`<button class="sq" data-act="enr" data-id="${i.id}" data-d="-1" aria-label="One fewer enrolled">−</button>`:""}<span style="flex:1"><b style="font-size:22px">${+i.enrolled||0}</b> <span class="mut">enrolled${i.target?" of "+(+i.target):""}</span>${bar(i)}</span>${ed?`<button class="sq" data-act="enr" data-id="${i.id}" data-d="1" aria-label="One more enrolled">+</button>`:""}</div>
 <dl class="dl">${i.dates.filter(d=>d.label||d.date).map(d=>{const n=days(d.date);return`<dt>${esc(d.label)}</dt><dd class="${n!=null&&n<0?"past":""}">${esc(d.date?fmt(d.date,"short"):"—")}${n!=null&&n>=0&&n<=30?` <span class="soon">${away(n)}</span>`:""}</dd>`}).join("")}</dl>
 ${ed?`<div class="row"><button class="ghost" data-act="editintake" data-id="${i.id}">Edit dates</button><button class="ghost" data-act="dupintake" data-id="${i.id}">Copy to new term</button>${ui.confirm==="i"+i.id?`<button class="danger" data-act="delintake" data-id="${i.id}">Delete</button>`:`<button class="ghost" data-act="ask" data-w="i${i.id}">Delete</button>`}</div>`:""}</div>`).join("")+`</div>`:`<p class="empty">No intakes yet. Add one for each start date, for example "January 2027".</p>`;
   S.intakes+=`</section>`;
-  S.files=`<section class="box"><h3>Excel files${mv("files")}</h3>`+(p.links.length?`<ul class="files">`+p.links.map((l,k)=>ui.edit==="link"+k?`<li>${linkForm(l,k)}</li>`:`<li class="file"><a class="name" href="${esc(l.url)}" target="_blank" rel="noopener"><span class="xl" aria-hidden="true">X</span><span>${esc(l.label)}<span class="host">${esc(host(l.url))}</span></span></a>${ed?`<button class="sq ghost" data-act="lkmv" data-k="${k}" data-d="-1" aria-label="Move up" ${k===0?"disabled":""}>↑</button><button class="sq ghost" data-act="lkmv" data-k="${k}" data-d="1" aria-label="Move down" ${k===p.links.length-1?"disabled":""}>↓</button><button class="ghost" data-act="editlink" data-k="${k}">Edit</button>${ui.confirm==="l"+k?`<button class="danger" data-act="dellink" data-k="${k}">Remove</button>`:`<button class="ghost" data-act="ask" data-w="l${k}">Remove</button>`}`:""}</li>`).join("")+`</ul>`:`<p class="empty">No files yet. In SharePoint, open a file's ⋯ menu, choose Copy link, and paste it here.</p>`)+(ui.edit==="addlink"?linkForm({label:"",url:""},""):"")+`</section>`;
-  S.drafts=`<section class="box"><h3>Email drafts for ${esc(p.name)}${mv("drafts")}</h3>${draftList(p.drafts,p.id)}</section>`;
+  S.files=`<section class="box"><h3>${secTitle("files")}${mv("files")}</h3>`+(p.links.length?`<ul class="files">`+p.links.map((l,k)=>ui.edit==="link"+k?`<li>${linkForm(l,k)}</li>`:`<li class="file"><a class="name" href="${esc(l.url)}" target="_blank" rel="noopener">${linkIcon(l)}<span>${esc(l.label)}<span class="host">${esc(host(l.url))}</span></span></a>${ed?`<button class="sq ghost" data-act="lkmv" data-k="${k}" data-d="-1" aria-label="Move up" ${k===0?"disabled":""}>↑</button><button class="sq ghost" data-act="lkmv" data-k="${k}" data-d="1" aria-label="Move down" ${k===p.links.length-1?"disabled":""}>↓</button><button class="ghost" data-act="editlink" data-k="${k}">Edit</button>${ui.confirm==="l"+k?`<button class="danger" data-act="dellink" data-k="${k}">Remove</button>`:`<button class="ghost" data-act="ask" data-w="l${k}">Remove</button>`}`:""}</li>`).join("")+`</ul>`:`<p class="empty">No links yet. Add your SharePoint files, Canva designs, Google files, websites or anything else with a link. In SharePoint, open a file's ⋯ menu and choose Copy link.</p>`)+(ui.edit==="addlink"?linkForm({label:"",url:""},""):"")+`</section>`;
+  S.drafts=`<section class="box"><h3>${secTitle("drafts")}${mv("drafts")}</h3>${draftList(p.drafts,p.id)}</section>`;
   h+=data.settings.progOrder.map(k=>S[k]).join("");
   return h+`</section></div>`;
 }
@@ -484,11 +490,33 @@ function intakeForm(i,id){
 <div class="row" style="margin-top:12px;background:var(--panel);border-radius:10px;padding:10px"><span class="small"><b>Move every date</b></span><input id="sh-n" type="number" value="0" style="width:90px" aria-label="How many"><select id="sh-u" style="width:auto" aria-label="Unit"><option value="w">weeks</option><option value="m">months</option><option value="d">days</option></select><button type="button" data-act="shift">Apply</button><span class="small mut">Use a negative number to move dates earlier.</span></div>
 <div class="row end" style="margin-top:12px"><button type="button" class="ghost" data-act="cancel">Cancel</button><button class="pri">Save intake</button></div></form>`;
 }
-function linkForm(l,k){return`<form class="form" data-form="link" data-k="${k}"><div class="grid2"><div><label for="lf-l">Name</label><input id="lf-l" name="label" value="${esc(l.label)}" placeholder="e.g. January 2027 tracker" required></div><div><label for="lf-u">SharePoint link</label><input id="lf-u" name="url" value="${esc(l.url)}" placeholder="Paste the link" required></div></div><div class="row end" style="margin-top:12px"><button type="button" class="ghost" data-act="cancel">Cancel</button><button class="pri">Save link</button></div></form>`}
+function linkForm(l,k){const ic=l.icon||"auto";const cc=l.iconColor||"#5e5e66";
+  return`<form class="form" data-form="link" data-k="${k}"><div class="grid2"><div><label for="lf-l">Name</label><input id="lf-l" name="label" value="${esc(l.label)}" placeholder="e.g. January 2027 tracker" required></div><div><label for="lf-u">Link</label><input id="lf-u" name="url" value="${esc(l.url)}" placeholder="Paste any link: SharePoint, Canva, Google, a website…" required></div></div>
+<div class="grid2"><div><label for="lf-i">Icon</label><div class="row" style="flex-wrap:nowrap"><span id="lf-prev">${linkIcon({url:l.url,icon:ic==="auto"?"":ic,iconText:l.iconText,iconColor:cc})}</span><select id="lf-i" name="icon"><option value="auto"${ic==="auto"?" selected":""}>Automatic (matches the link)</option>${Object.entries(ICONS).map(([v,[n]])=>`<option value="${v}"${ic===v?" selected":""}>${n}</option>`).join("")}<option value="custom"${ic==="custom"?" selected":""}>My own letters and colour</option></select></div></div>
+<div id="lf-cust" ${ic==="custom"?"":"hidden"}><label for="lf-t">Letters (up to 3) and colour</label><div class="row" style="flex-wrap:nowrap"><input id="lf-t" name="iconText" maxlength="3" value="${esc(l.iconText||"")}" placeholder="e.g. HR" style="max-width:120px"><input type="color" id="lf-c" name="iconColor" value="${esc(cc)}" aria-label="Icon colour"></div></div></div>
+<div class="row end" style="margin-top:12px"><button type="button" class="ghost" data-act="cancel">Cancel</button><button class="pri">Save link</button></div></form>`}
 function draftForm(d,scope){
   return`<form class="form" data-form="draft" data-id="${d.id||""}" data-s="${scope}"><div class="grid2"><div><label for="df-t">Draft name</label><input id="df-t" name="title" value="${esc(d.title)}" placeholder="e.g. Welcome email" required></div><div><label for="df-to">To (optional)</label><input id="df-to" name="to" value="${esc(d.to)}" placeholder="e.g. office@college.ca"></div></div><label for="df-s">Subject</label><input id="df-s" name="subject" value="${esc(d.subject)}" placeholder="e.g. Welcome to [Program], starting [Start date]"><label>Message</label>
 ${rte("df-b",d.html,"Write or paste your email. Formatting from Outlook or Word is kept.",scope)}
 <p class="hint">Anything else in square brackets, like [Student name], stays as-is and is marked so you remember to fill it in.</p><div class="row end" style="margin-top:12px"><button type="button" class="ghost" data-act="cancel">Cancel</button><button class="pri">Save draft</button></div></form>`}
+
+/* ---------- link icons ---------- */
+const FOLDER='<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h5l2 2h8A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/></svg>';
+const GLOBE='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.8 3 2.8 15 0 18M12 3c-2.8 3-2.8 15 0 18"/></svg>';
+const PLAY='<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>';
+const ICONS={excel:["Excel","X","#1d6f42"],word:["Word","W","#2b579a"],ppt:["PowerPoint","P","#c43e1c"],pdf:["PDF","PDF","#b3261e"],onenote:["OneNote","N","#7719aa"],forms:["Microsoft Forms","F","#038387"],teams:["Teams","T","#4b53bc"],folder:["Folder",FOLDER,"#b07d00"],
+  canva:["Canva","C","#00a3ad"],gdoc:["Google Docs","D","#1a73e8"],gsheet:["Google Sheets","S","#188038"],gslide:["Google Slides","S","#e37400"],gdrive:["Google Drive","G","#5f6368"],gform:["Google Forms","F","#7248b9"],
+  brightspace:["Brightspace","B","#2e4a7d"],video:["Video",PLAY,"#cc0000"],web:["Website",GLOBE,"var(--acc)"]};
+function guessIcon(u){u=(u||"").toLowerCase();
+  if(/\/:x:\/|\.(xlsx|xlsm|xls|csv)(\?|$|#)/.test(u))return"excel";if(/\/:w:\/|\.(docx?|rtf)(\?|$|#)/.test(u))return"word";if(/\/:p:\/|\.(pptx?)(\?|$|#)/.test(u))return"ppt";
+  if(/\/:b:\/|\.pdf(\?|$|#)/.test(u))return"pdf";if(/\/:f:\/|\/forms\/allitems|\/shared%20documents\/?($|\?)/.test(u))return"folder";if(/\/:o:\/|onenote/.test(u))return"onenote";if(/\/:v:\/|youtube\.com|youtu\.be|vimeo\.com|stream\.microsoft/.test(u))return"video";
+  if(/forms\.office\.com|forms\.microsoft\.com/.test(u))return"forms";if(/teams\.microsoft\.com|teams\.live\.com/.test(u))return"teams";if(/canva\.com|canva\.link/.test(u))return"canva";
+  if(/docs\.google\.com\/document/.test(u))return"gdoc";if(/docs\.google\.com\/spreadsheets/.test(u))return"gsheet";if(/docs\.google\.com\/presentation/.test(u))return"gslide";if(/docs\.google\.com\/forms|forms\.gle/.test(u))return"gform";if(/drive\.google\.com/.test(u))return"gdrive";
+  if(/brightspace|d2l/.test(u))return"brightspace";return"web"}
+function linkIcon(l){
+  if(l.icon==="custom"){const c=/^#[\da-f]{6}$/i.test(l.iconColor||"")?l.iconColor:"#5e5e66";const t=(l.iconText||"?").slice(0,3);return`<span class="xl" aria-hidden="true" style="background:${c};color:${lum(c)>.4?"#16161a":"#fff"};font-size:${t.length>2?"11px":"14px"}">${esc(t)}</span>`}
+  const k=ICONS[l.icon]?l.icon:guessIcon(l.url);const[ ,t,c]=ICONS[k];const isSvg=t.startsWith("<svg");
+  return`<span class="xl" aria-hidden="true" style="background:${c};color:${c.startsWith("#")&&lum(c)>.4?"#16161a":c.startsWith("var")?"var(--on)":"#fff"};font-size:${!isSvg&&t.length>2?"10px":"14px"}">${isSvg?t:esc(t)}</span>`}
 
 /* ---------- bulk dates ---------- */
 function bulkForm(){
@@ -608,6 +636,7 @@ async function doExport(){
 document.addEventListener("input",e=>{const t=e.target;
   if(t.id==="search"||t.id==="fsearch"){const v=t.value.trim().toLowerCase();if(t.id==="search")q=v;else fq=v;const pos=t.selectionStart,id=t.id;render();const s=$(id);s.focus();s.setSelectionRange(pos,pos)}
   if(t.id==="st-it"&&!/^data:image\//.test(data.settings.icon||"")){const keep=data.settings.iconText;data.settings.iconText=t.value.toUpperCase();applyIcon();data.settings.iconText=keep}
+  if((t.id==="lf-u"||t.id==="lf-t")&&$("lf-i")){const ic=$("lf-i").value;$("lf-prev").innerHTML=linkIcon({url:$("lf-u").value,icon:ic==="auto"?"":ic,iconText:$("lf-t").value.toUpperCase(),iconColor:$("lf-c").value})}
   if(t.id==="st-c"){document.documentElement.style.setProperty("--c",t.value);document.documentElement.style.setProperty("--headink",lum(t.value)>.4?"#16161a":"#fff")}});
 document.addEventListener("change",e=>{const t=e.target;
   if(t.dataset.fill){fill[t.dataset.fill]=t.value;render();return}
@@ -616,6 +645,7 @@ document.addEventListener("change",e=>{const t=e.target;
   if(/^ov-/.test(t.id)){const o=data.settings.ov,k=t.id.slice(3);o[k]=k==="notes"?t.checked:(k==="range"||k==="limit")?+t.value:t.value;if(!readOnly)save();render();return}
   if(t.dataset.tabname!==undefined&&t.matches("[data-tabname]")){if(readOnly)return;data.settings.tabNames[t.dataset.tabname]=t.value.trim();save();renderNav();toast("Tab name saved");return}
   if(t.id==="st-iu"&&t.files[0]){if(readOnly)return;const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{const c=document.createElement("canvas");c.width=c.height=128;const x=c.getContext("2d");const m=Math.min(img.width,img.height);x.drawImage(img,(img.width-m)/2,(img.height-m)/2,m,m,0,0,128,128);data.settings.icon=c.toDataURL("image/png");save(true);applyIcon();render();toast("Tab icon updated")};img.onerror=()=>toast("That file isn't an image I can read.");img.src=r.result};r.readAsDataURL(t.files[0]);return}
+  if(t.id==="lf-i"||t.id==="lf-c"){const ic=$("lf-i").value;$("lf-cust").hidden=ic!=="custom";$("lf-prev").innerHTML=linkIcon({url:$("lf-u").value,icon:ic==="auto"?"":ic,iconText:$("lf-t").value.toUpperCase(),iconColor:$("lf-c").value});return}
   if(t.dataset.tabshow){if(readOnly)return;const h=data.settings.hidden,v=t.dataset.tabshow;if(t.checked)data.settings.hidden=h.filter(x=>x!==v);else if(!h.includes(v))h.push(v);save();render();return}
   if(t.dataset.done){if(readOnly)return;const n=data.notes.find(x=>x.id===t.dataset.done);if(n){n.done=t.checked;save();render();toast(n.done?"Marked done":"Marked not done")}return}
   if(t.id==="restfile"&&t.files[0]){const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d.programs))throw 0;data=normalize(d);cur=null;save(true);route();toast("Backup restored")}catch(x){$("restmsg").textContent="That file isn't a Program Hub backup."}};r.readAsText(t.files[0])}});
@@ -670,6 +700,7 @@ document.addEventListener("click",e=>{
   if(a==="newfaq"){reset();ui.edit="newfaq";render();$("fq-q")?.focus();return}
   if(a==="editfaq"){reset();ui.edit=b.dataset.id;render();$("fq-q")?.focus();return}
   if(a==="iconclear"){delete data.settings.icon;save(true);applyIcon();render();toast("Using letters for the icon");return}
+  if(a==="secname"){reset();ui.secEdit=b.dataset.v;render();document.querySelector("[data-form=secname] input")?.focus();return}
   if(a==="secmv"){const t=data.settings.progOrder,k=t.indexOf(b.dataset.v),j=k+(+b.dataset.d);if(k<0||j<0||j>=t.length){toast("Already at the "+(j<0?"top":"bottom")+".");return}[t[k],t[j]]=[t[j],t[k]];save();render();return}
   if(a==="drmv"){const l=list(b.dataset.s),k=l.findIndex(x=>x.id===b.dataset.id),j=k+(+b.dataset.d);if(k<0||j<0||j>=l.length)return;[l[k],l[j]]=[l[j],l[k]];save();render();return}
   if(a==="rowmv"){const r=b.closest(".drow"),sib=+b.dataset.d<0?r.previousElementSibling:r.nextElementSibling;if(!sib)return;if(+b.dataset.d<0)sib.before(r);else sib.after(r);b.focus();return}
@@ -698,6 +729,7 @@ document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.id==="lnk-u
 document.addEventListener("submit",e=>{
   const f=e.target.closest("[data-form]");if(!f)return;e.preventDefault();
   if(f.dataset.form==="auth"){doAuth(f);return}
+  if(f.dataset.form==="secname"&&!readOnly){data.settings.secNames=data.settings.secNames||{};data.settings.secNames[f.dataset.v]=f.elements.n.value.trim();reset();save();render();toast("Section renamed");return}
   if(f.dataset.form==="chpw"){const o=f.elements.old.value,n=f.elements.nw.value,er=$("cp-err");er.textContent="";
     if(n.length<8){er.textContent="Use at least 8 characters for the new password.";return}
     const u=auth.currentUser;if(!u)return;
@@ -733,8 +765,8 @@ document.addEventListener("submit",e=>{
     reset();ui.open=id||data.faqs[0].id;save(true);render();toast("FAQ saved");return}
   const p=P();if(!p)return;
   if(k==="rename"){const n=v("name");if(n)p.name=n;normalize(data)}
-  if(k==="link"){const url=cleanUrl(v("url"));if(!url){toast("That link doesn't look right. Paste the full SharePoint link.");return}
-    const l={label:v("label")||"Untitled file",url};if(f.dataset.k==="")p.links.push(l);else p.links[+f.dataset.k]=l}
+  if(k==="link"){const url=cleanUrl(v("url"));if(!url){toast("That link doesn't look right. Paste the full address.");return}
+    const ic=v("icon")||"auto";const l={label:v("label")||"Untitled link",url,icon:ic==="auto"?"":ic};if(ic==="custom"){l.iconText=v("iconText").toUpperCase()||"?";l.iconColor=v("iconColor")}if(f.dataset.k==="")p.links.push(l);else p.links[+f.dataset.k]=l}
   if(k==="intake"){const ls=[...f.querySelectorAll("input[name=dl]")],ds=[...f.querySelectorAll("input[name=dd]")];
     const dates=ls.map((l,j)=>({label:l.value.trim(),date:ds[j].value})).filter(d=>d.label||d.date);
     const body={name:v("name")||"Intake",target:v("target"),enrolled:v("enrolled"),dates};
