@@ -125,6 +125,16 @@ mark.miss{background:none;color:var(--bad);font-weight:600;outline:1.5px dashed 
 .sw{width:52px;height:52px;border-radius:50%;border:3px solid var(--bg);box-shadow:0 0 0 1.5px var(--line);cursor:pointer;padding:0}
 .sw[aria-pressed=true]{box-shadow:0 0 0 3px var(--ink)}
 input[type=color]{width:64px;height:48px;padding:2px}
+.acct{float:right;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;font-size:14px;margin:4px 0 8px 16px;max-width:100%}
+.acct span{opacity:.9;overflow-wrap:anywhere}
+.acct button{min-height:38px;font-size:14px;border-color:currentColor;color:var(--headink);background:transparent}
+.auth{max-width:440px;margin:clamp(8px,4vw,40px) auto;background:var(--panel);border-radius:18px;padding:clamp(20px,4vw,32px)}
+.auth h2{margin-bottom:4px}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--bg);border-radius:12px;padding:4px;margin:16px 0 6px}
+.seg button{border:0;min-height:42px}.seg button[aria-pressed=true]{background:var(--acc);color:var(--on)}
+.auth .err{color:var(--bad);font-size:15px;margin:10px 0 0;min-height:1em}
+.auth .okmsg{color:var(--ink);background:var(--bg);border-radius:10px;padding:10px 12px;font-size:15px;margin-top:10px}
+.or{display:flex;align-items:center;gap:10px;color:var(--mut);font-size:14px;margin:18px 0 10px}.or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:10px;font-size:15px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9;max-width:90vw}
 .toast.on{opacity:1}
 @media(prefers-reduced-motion:reduce){.toast{transition:none}}
@@ -133,6 +143,7 @@ input[type=color]{width:64px;height:48px;padding:2px}
 </head>
 <body>
 <header><div class="wrap">
+<div class="acct" id="acct"></div>
 <h1 id="hubname">Program Hub</h1>
 <p id="hubsub">Intakes, enrolments, spreadsheets, email drafts and FAQs for every program.</p>
 <nav id="nav" aria-label="Sections">
@@ -143,6 +154,20 @@ input[type=color]{width:64px;height:48px;padding:2px}
 <div id="clipbox" aria-hidden="true" style="position:fixed;left:-9999px;top:0;width:600px;background:#fff;color:#000"></div>
 
 <script>
+/* ===================== SIGN-IN SETUP =====================
+   Paste your Firebase config between the { } below.
+   Leave it empty and the hub works without sign-in
+   (saved in each person's browser only).
+   ========================================================= */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBKc6FYMS-yGUruK13508Dc3m2Y7Pw_Nxo",
+  authDomain: "program-hub-5a179.firebaseapp.com",
+  projectId: "program-hub-5a179",
+  storageBucket: "program-hub-5a179.firebasestorage.app",
+  messagingSenderId: "23967235780",
+  appId: "1:23967235780:web:b4b68c92f9fc5e00da1391"
+};
+/* ========================================================= */
 {
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -186,7 +211,7 @@ const textToHtml=t=>String(t||"").split(/\n{2,}/).map(p=>"<p>"+esc(p).replace(/\
 function htmlToText(h){const d=document.createElement("div");d.innerHTML=String(h||"").replace(/<br\s*\/?>/gi,"\n").replace(/<\/(p|div|li|h\d)>/gi,"$&\n").replace(/<li>/gi,"<li>• ");return d.textContent.replace(/\n{3,}/g,"\n\n").trim()}
 
 /* ---------- storage ---------- */
-const LS="programhub-v2";let doc=null,writing=Promise.resolve(),saveT=null;
+const LS="programhub-v2";const FB_ON=!!(FIREBASE_CONFIG&&FIREBASE_CONFIG.apiKey);let auth=null,fs=null,user=null,unsub=null;let doc=null,writing=Promise.resolve(),saveT=null;
 function normalize(d){d=d&&typeof d==="object"?d:{};d.programs=Array.isArray(d.programs)?d.programs:[];d.admin=Array.isArray(d.admin)?d.admin:[];d.faqs=Array.isArray(d.faqs)?d.faqs:[];d.dateStyle=d.dateStyle||"long";d.settings=d.settings||{};d.notes=Array.isArray(d.notes)?d.notes:[];
   const ord=Array.isArray(d.settings.tabs)?d.settings.tabs.filter(v=>VIEWS.includes(v)):[];VIEWS.forEach(v=>{if(ord.includes(v))return;const b=ord.indexOf("backup");if(v!=="backup"&&b>-1)ord.splice(b,0,v);else ord.push(v)});d.settings.tabs=ord;
   d.settings.tabNames=d.settings.tabNames&&typeof d.settings.tabNames==="object"?d.settings.tabNames:{};
@@ -200,19 +225,85 @@ function normalize(d){d=d&&typeof d==="object"?d:{};d.programs=Array.isArray(d.p
 function save(now){
   data.updated=Date.now();
   if(mode==="local"){try{localStorage.setItem(LS,JSON.stringify(data))}catch(e){toast("Couldn't save in this browser. Download a backup now.")}return}
-  if(mode!=="db")return;
-  clearTimeout(saveT);saveT=setTimeout(()=>{const body=JSON.parse(JSON.stringify(data));writing=writing.then(()=>doc.set(body)).catch(fail)},now?0:500);
+  if(mode!=="db"&&mode!=="cloud")return;
+  clearTimeout(saveT);saveT=setTimeout(()=>{saveT=null;const body=JSON.parse(JSON.stringify(data));const d=doc;writing=writing.then(()=>d.set(body)).catch(fail)},now?0:700);
 }
 function fail(e){
   if(e&&e.code==="invalid_argument"){readOnly=true;render();toast("You can view this hub but not change it.")}
   else if(e&&e.code==="quota_exceeded")toast("Storage is full. Delete some old drafts.");
+  else if(e&&e.code==="permission-denied")toast("That change didn't save. Sign out and sign back in, then try again.");
+  else if(e&&e.code==="invalid-argument")toast("Your hub is too big to save. Remove an uploaded icon or some long drafts.");
   else toast("That change didn't save. Check your connection.");
 }
 function startLocal(){
-  mode="local";let raw=null;try{raw=localStorage.getItem(LS)}catch(e){}
+  mode="local";renderAcct();let raw=null;try{raw=localStorage.getItem(LS)}catch(e){}
   if(raw){try{data=normalize(JSON.parse(raw))}catch(e){data=normalize({})}}
   else{let old=null;try{old=JSON.parse(localStorage.getItem("programhub-v1")||"null")}catch(e){}data=normalize({programs:old||[]});if(old)save()}
   route();
+}
+/* ---------- accounts ---------- */
+const isGuest=()=>{try{return localStorage.getItem("ph-guest")==="1"}catch(e){return false}};
+function renderAcct(){const a=$("acct");if(!a)return;
+  if(mode==="cloud"&&user)a.innerHTML=`<span>${esc(user.email||"Signed in")}</span><button type="button" data-act="signout">Sign out</button>`;
+  else if(FB_ON&&mode==="local")a.innerHTML=`<span>Not signed in</span><button type="button" data-act="signin">Sign in</button>`;
+  else a.innerHTML=""}
+function startCloud(u){
+  mode="cloud";user=u;renderAcct();doc=fs.collection("users").doc(u.uid);let first=true;
+  $("view").innerHTML='<p class="empty">Loading your hub…</p>';
+  const t=setTimeout(()=>{if(first)$("view").innerHTML='<p class="empty">Still trying to reach your hub. Check your internet connection.</p>'},10000);
+  unsub=doc.onSnapshot(s=>{
+    if(s.metadata.hasPendingWrites)return;
+    clearTimeout(t);
+    if(!s.exists){if(first){first=false;let local=null;try{local=JSON.parse(localStorage.getItem(LS)||"null")}catch(e){}
+        data=normalize(local||{});const has=local&&((local.programs||[]).length||(local.admin||[]).length||(local.faqs||[]).length||(local.notes||[]).length);
+        save(true);route();if(has)toast("Your hub from this browser is now saved in your account.")}return}
+    first=false;data=normalize(JSON.parse(JSON.stringify(s.data())));
+    if(document.querySelector("#view form:not([data-form=settings])")&&view!=="backup")return;route();
+  },e=>{clearTimeout(t);$("view").innerHTML=`<p class="empty">Couldn't open your hub (${esc(e.code||"error")}). Sign out and sign back in.</p>`});
+}
+const AUTH_ERR={"auth/invalid-credential":"That email or password isn't right.","auth/wrong-password":"That email or password isn't right.","auth/user-not-found":"That email or password isn't right.","auth/invalid-login-credentials":"That email or password isn't right.","auth/email-already-in-use":"There's already an account with that email. Sign in instead.","auth/weak-password":"Use a password of at least 8 characters.","auth/invalid-email":"That email address doesn't look right.","auth/too-many-requests":"Too many tries. Wait a few minutes, or reset your password.","auth/network-request-failed":"No connection. Check your internet and try again.","auth/operation-not-allowed":"Email sign-in isn't turned on yet in Firebase (Authentication → Sign-in method → Email/Password)."};
+function showAuth(){mode="auth";data=normalize({});renderAcct();$("nav").innerHTML="";applyTheme();
+  const tab=ui.authTab||"in";
+  const pw=(id,ac)=>`<div style="position:relative"><input id="${id}" name="${id}" type="password" autocomplete="${ac}" required minlength="${tab==="up"?8:1}" style="padding-right:76px"><button type="button" class="ghost" data-act="showpw" data-for="${id}" style="position:absolute;right:2px;top:2px;min-height:40px;font-size:14px">Show</button></div>`;
+  $("view").innerHTML=`<div class="auth"><h2>${tab==="reset"?"Reset your password":"Welcome"}</h2><p class="mut" style="margin:0">${tab==="reset"?"Enter your email and we'll send you a link to set a new password.":"Sign in to see your hub on any computer or phone."}</p>
+${tab==="reset"?"":`<div class="seg" role="group" aria-label="Sign in or create an account"><button type="button" data-act="authtab" data-v="in" aria-pressed="${tab==="in"}">Sign in</button><button type="button" data-act="authtab" data-v="up" aria-pressed="${tab==="up"}">Create account</button></div>`}
+<form data-form="auth" data-tab="${tab}" novalidate><label for="au-e">Email</label><input id="au-e" name="email" type="email" autocomplete="email" required value="${esc(ui.authEmail||"")}">
+${tab==="reset"?"":`<label for="au-p">Password${tab==="up"?" (at least 8 characters)":""}</label>${pw("au-p",tab==="up"?"new-password":"current-password")}`}
+${tab==="up"?`<label for="au-p2">Type the password again</label>${pw("au-p2","new-password")}`:""}
+<p class="err" id="au-err" role="alert"></p>${ui.authMsg?`<p class="okmsg">${esc(ui.authMsg)}</p>`:""}
+<button class="pri" style="width:100%;margin-top:12px">${tab==="up"?"Create account":tab==="reset"?"Send reset link":"Sign in"}</button></form>
+<div class="row" style="justify-content:center;margin-top:10px">${tab==="reset"?`<button class="ghost" data-act="authtab" data-v="in">Back to sign in</button>`:`<button class="ghost" data-act="authtab" data-v="reset">Forgot your password?</button>`}</div>
+<div class="or">or</div><button style="width:100%" data-act="guest">Use without an account</button><p class="hint" style="text-align:center">Without an account, your hub is saved in this browser only.</p></div>`;
+  ui.authMsg="";}
+async function doAuth(f){
+  const tab=f.dataset.tab,email=f.elements.email.value.trim(),err=$("au-err");ui.authEmail=email;err.textContent="";
+  if(!email){err.textContent="Enter your email.";return}
+  const btn=f.querySelector("button.pri");btn.disabled=true;
+  try{
+    if(tab==="reset"){await auth.sendPasswordResetEmail(email);ui.authTab="in";ui.authMsg="If there's an account for that email, a reset link is on its way. Check your junk folder too.";showAuth();return}
+    const pw=f.elements["au-p"].value;
+    if(tab==="up"){if(pw.length<8){err.textContent="Use a password of at least 8 characters.";btn.disabled=false;return}
+      if(pw!==f.elements["au-p2"].value){err.textContent="The two passwords don't match.";btn.disabled=false;return}
+      await auth.createUserWithEmailAndPassword(email,pw)}
+    else await auth.signInWithEmailAndPassword(email,pw);
+    ui.authTab="in";
+  }catch(e){err.textContent=AUTH_ERR[e.code]||("Something went wrong ("+(e.code||e.message)+"). Try again.");btn.disabled=false}
+}
+async function signOut(){
+  if(mode==="cloud"&&saveT){clearTimeout(saveT);saveT=null;try{await doc.set(JSON.parse(JSON.stringify(data)))}catch(e){}}
+  try{await writing}catch(e){}
+  if(unsub){unsub();unsub=null}reset();await auth.signOut();toast("Signed out");
+}
+function loadScript(src){return new Promise((res,rej)=>{const el=document.createElement("script");el.src=src;el.onload=res;el.onerror=rej;document.head.appendChild(el)})}
+async function startFirebase(){
+  $("view").innerHTML='<p class="empty">Loading…</p>';
+  try{const base="https://cdn.jsdelivr.net/npm/firebase@12.7.0/";await loadScript(base+"firebase-app-compat.js");
+    await Promise.all([loadScript(base+"firebase-auth-compat.js"),loadScript(base+"firebase-firestore-compat.js")]);
+    firebase.initializeApp(FIREBASE_CONFIG);auth=firebase.auth();fs=firebase.firestore();
+  }catch(e){startLocal();toast("Sign-in isn't available right now, so your hub is saved in this browser only.");return}
+  auth.onAuthStateChanged(u=>{if(unsub){unsub();unsub=null}clearTimeout(saveT);saveT=null;
+    if(u){try{localStorage.removeItem("ph-guest")}catch(e){}startCloud(u)}
+    else{user=null;if(isGuest())startLocal();else{reset();showAuth()}}});
 }
 function startDb(db){
   mode="db";doc=db.doc("hub/main");let first=true;
@@ -288,11 +379,11 @@ const VIEWS=["overview","programs","admin","faqs","notes","backup"];
 const NAMES={overview:"Overview",programs:"Programs",admin:"Admin drafts",faqs:"FAQs",notes:"Notes",backup:"Settings and backup"};
 const nm=v=>((data.settings.tabNames||{})[v]||"").trim()||NAMES[v];
 function renderNav(){const vis=data.settings.tabs.filter(v=>!data.settings.hidden.includes(v));$("nav").innerHTML=vis.map(v=>`<a href="#${v}" aria-current="${v===view?"page":"false"}">${esc(nm(v))}</a>`).join("")}
-function route(){const vis=data.settings.tabs.filter(v=>!data.settings.hidden.includes(v));const h=(location.hash||"").slice(1);view=VIEWS.includes(h)?h:vis[0]||"overview";if(!cur||!P())cur=data.programs[0]?.id||null;applyTheme();render()}
+function route(){if(mode==="auth"){showAuth();return}const vis=data.settings.tabs.filter(v=>!data.settings.hidden.includes(v));const h=(location.hash||"").slice(1);view=VIEWS.includes(h)?h:vis[0]||"overview";if(!cur||!P())cur=data.programs[0]?.id||null;applyTheme();render()}
 window.addEventListener("hashchange",()=>{reset();route()});
 function render(){
   renderNav();
-  const note=mode==="local"?`<div class="banner">This hub is yours and is saved in this browser only. Download a backup from <a href="#backup">${esc(nm("backup"))}</a> now and then.</div>`:readOnly?'<div class="banner">View only.</div>':"";
+  const note=mode==="local"&&FB_ON?`<div class="banner">You're using the hub without an account, so it's saved in this browser only. <button class="ghost" data-act="signin" style="min-height:36px;padding:0 6px;text-decoration:underline">Sign in or create an account</button> to keep it on all your devices.</div>`:mode==="local"?`<div class="banner">This hub is yours and is saved in this browser only. Download a backup from <a href="#backup">${esc(nm("backup"))}</a> now and then.</div>`:readOnly?'<div class="banner">View only.</div>':"";
   $("view").innerHTML=note+({overview:vOverview,programs:vPrograms,admin:vAdmin,faqs:vFaqs,notes:vNotes,backup:vBackup}[view])();
 }
 
@@ -444,7 +535,8 @@ function faqForm(f){
 function vBackup(){
   const c=data.settings.color||"#800000";
   return`<h2>${esc(nm("backup"))}</h2>
-<section class="box" style="margin-top:12px;border:0;padding:0"><h3>Make it yours</h3>
+${mode==="cloud"&&user?`<section class="box" style="margin-top:12px;border:0;padding:0"><h3>Your account</h3><p>Signed in as <b>${esc(user.email)}</b>. Your hub is saved to your account and stays in sync on every device you sign in on.</p><div class="row"><button data-act="pwreset">Email me a password reset link</button><button class="ghost" data-act="signout">Sign out</button></div></section>`:""}
+<section class="box" style="${mode==="cloud"?"":"margin-top:12px;border:0;padding:0"}"><h3>Make it yours</h3>
 <form data-form="settings"><div class="grid2"><div><label for="st-n">Hub name</label><input id="st-n" name="name" value="${esc(data.settings.name||"")}" placeholder="Program Hub"></div><div><label for="st-t">Line under the name</label><input id="st-t" name="tagline" value="${esc(data.settings.tagline||"")}" placeholder="Intakes, enrolments, spreadsheets, email drafts and FAQs for every program."></div></div>
 <label>Colour</label><div class="swatches">${THEMES.map(([n,v])=>`<button type="button" class="sw" style="background:${v}" data-act="color" data-v="${v}" aria-label="${n}" title="${n}" aria-pressed="${v.toLowerCase()===c.toLowerCase()}"></button>`).join("")}<span class="row"><input type="color" id="st-c" value="${esc(c)}" aria-label="Pick any colour"><span class="small mut">or pick any colour</span></span></div>
 <label>Browser tab icon</label><div class="row" style="align-items:center;gap:14px"><img id="iconprev" src="${iconUrl()}" alt="Current tab icon" width="56" height="56" style="border-radius:12px;border:1.5px solid var(--line);background:var(--panel);object-fit:cover">
@@ -529,6 +621,12 @@ document.addEventListener("click",e=>{
   const ins=e.target.closest("[data-ins]");
   if(ins){const ed=$("df-b");if(!ed.contains(getSelection().anchorNode)){ed.focus();const r=document.createRange();r.selectNodeContents(ed);r.collapse(false);const s=getSelection();s.removeAllRanges();s.addRange(r)}document.execCommand("insertText",false,ins.dataset.ins);return}
   const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act;
+  if(a==="authtab"){const em=$("au-e");if(em)ui.authEmail=em.value.trim();ui.authTab=b.dataset.v;showAuth();$("au-e")?.focus();return}
+  if(a==="showpw"){const i=$(b.dataset.for);i.type=i.type==="password"?"text":"password";b.textContent=i.type==="password"?"Show":"Hide";return}
+  if(a==="guest"){try{localStorage.setItem("ph-guest","1")}catch(e){}reset();startLocal();return}
+  if(a==="signin"){try{localStorage.removeItem("ph-guest")}catch(e){}reset();ui.authTab="in";showAuth();return}
+  if(a==="signout"){signOut();return}
+  if(a==="pwreset"&&user){auth.sendPasswordResetEmail(user.email).then(()=>toast("Reset link sent to "+user.email)).catch(()=>toast("Couldn't send the link. Try again later."));return}
   if(a==="lnkok"||a==="lnkno"){const u=a==="lnkok"?cleanUrl($("lnk-u").value):"";const box=b.closest(".row");const ed=box.parentElement.querySelector(".ed");box.remove();
     if(u&&ui.linkRange){ed.focus();const s=getSelection();s.removeAllRanges();s.addRange(ui.linkRange);document.execCommand("createLink",false,u)}else if(a==="lnkok")toast("That address doesn't look right.");ui.linkRange=null;return}
   if(a==="goprog"){cur=b.dataset.id;reset();location.hash="programs";return}
@@ -585,7 +683,9 @@ document.addEventListener("click",e=>{
 });
 document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.id==="lnk-u"){e.preventDefault();e.target.parentElement.querySelector("[data-act=lnkok]").click()}});
 document.addEventListener("submit",e=>{
-  const f=e.target.closest("[data-form]");if(!f)return;e.preventDefault();if(readOnly)return;
+  const f=e.target.closest("[data-form]");if(!f)return;e.preventDefault();
+  if(f.dataset.form==="auth"){doAuth(f);return}
+  if(readOnly)return;
   const v=n=>(f.elements[n]&&f.elements[n].value||"").trim(),k=f.dataset.form;
   if(k==="settings"){data.settings.name=v("name");data.settings.tagline=v("tagline");data.settings.color=$("st-c").value;data.settings.iconText=v("iconText").toUpperCase();data.dateStyle=v("dateStyle")||"long";save(true);applyTheme();render();toast("Settings saved");return}
   if(k==="addprog"){const n=v("name");if(!n)return;if(data.programs.some(p=>p.name.toLowerCase()===n.toLowerCase())){toast("That program already exists.");return}
@@ -623,7 +723,8 @@ document.addEventListener("submit",e=>{
     if(f.dataset.id)Object.assign(p.intakes.find(x=>x.id===f.dataset.id)||{},body);else p.intakes.push(Object.assign({id:uid()},body))}
   reset();save(true);render();toast("Saved");
 });
-if(window.claude&&typeof window.claude.use==="function"){window.claude.use("db").then(db=>db?startDb(db):startLocal()).catch(startLocal)}else startLocal();
+if(window.claude&&typeof window.claude.use==="function"){window.claude.use("db").then(db=>db?startDb(db):startLocal()).catch(startLocal)}
+else if(FB_ON)startFirebase();else startLocal();
 }
 </script>
 </body>
